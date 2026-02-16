@@ -11,68 +11,7 @@
     <script src="skill_figuregrowth.js"></script>
     <script src="skill_solveX.js"></script>
     <script src="skill_boxplot.js"></script>
-
-    <style>
-        :root { --primary: #00356B; --accent: #ed8936; --bg: #f0f4f8; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 20px; }
-        
-        #header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            background: white; 
-            padding: 15px 25px; 
-            border-radius: 10px; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
-            margin-bottom: 20px; 
-        }
-
-        #work-area { 
-            background: white; 
-            padding: 30px; 
-            border-radius: 12px; 
-            min-height: 450px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
-            position: relative; 
-            max-width: 800px;
-            margin: auto;
-        }
-
-        .stats { font-weight: bold; color: var(--primary); text-transform: capitalize; }
-        #timer-display { font-weight: bold; font-family: monospace; font-size: 1.2rem; }
-        #timer-display.idle { color: #e53e3e; }
-
-        /* Question Elements */
-        #q-title { color: var(--primary); margin-top: 0; border-bottom: 2px solid var(--bg); padding-bottom: 10px; }
-        #q-content { margin-top: 20px; }
-        
-        button { 
-            background: var(--primary); 
-            color: white; 
-            border: none; 
-            padding: 10px 15px; 
-            border-radius: 5px; 
-            cursor: pointer; 
-            font-weight: bold; 
-            transition: opacity 0.2s;
-        }
-        button:hover { opacity: 0.9; }
-        button:disabled { background: #cbd5e0; cursor: not-allowed; }
-
-        input[type="number"], input[type="text"] {
-            padding: 8px;
-            border: 2px solid #edf2f7;
-            border-radius: 5px;
-            outline: none;
-        }
-        input:focus { border-color: var(--accent); }
-
-        /* Feedback/Hints */
-        #feedback-box { margin-top: 20px; padding: 15px; border-radius: 8px; font-weight: bold; display: none; }
-        .correct { background: #c6f6d5; color: #22543d; border: 1px solid #38a169; }
-        .incorrect { background: #fed7d7; color: #822727; border: 1px solid #e53e3e; }
-        .hint-text { color: #718096; font-style: italic; font-size: 0.9rem; margin-top: 10px; }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -86,13 +25,11 @@
     </div>
 </div>
 
-<div id="work-area">
+<div id="work-area" class="container">
     <div id="question-container">
-        <h2 id="q-title">Connecting to Hub...</h2>
-        <div id="q-content">
-            </div>
+        <h2 id="q-title">Initializing...</h2>
+        <div id="q-content"></div>
     </div>
-
     <div id="feedback-box"></div>
 </div>
 
