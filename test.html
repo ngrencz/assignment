@@ -7,11 +7,10 @@
     
     <script>
         const APP_VERSION = "1.0.10"; 
-        const LAST_UPDATED = "2026-02-16 16:55"; 
+        const LAST_UPDATED = "2026-02-16 19:00"; 
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
     <script src="skill_transformation.js"></script>
     <script src="skill_linearsystem.js"></script>
     <script src="skill_figuregrowth.js"></script>
@@ -25,31 +24,11 @@
         body { padding: 20px; font-family: sans-serif; background-color: #f1f5f9; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
         .card { background: white; border: 1px solid var(--border); padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        
-        .version-tag {
-            background: #1e293b;
-            color: #38bdf8;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-family: monospace;
-            font-size: 11px;
-            display: inline-block;
-            margin-bottom: 10px;
-        }
-
-        .timer-tester {
-            background: #fff7ed;
-            border: 1px solid #ffedd5;
-            padding: 10px;
-            border-radius: 8px;
-            margin-top: 15px;
-        }
-        
+        .version-tag { background: #1e293b; color: #38bdf8; padding: 5px 12px; border-radius: 20px; font-family: monospace; font-size: 11px; display: inline-block; margin-bottom: 10px; }
         .log-box { background: #1a1a1a; color: #4CBB17; padding: 15px; font-family: monospace; border-radius: 8px; height: 250px; overflow-y: auto; font-size: 13px; margin-top: 10px; }
         input[type="range"] { width: 100%; accent-color: #4CBB17; cursor: pointer; }
         button { cursor: pointer; transition: opacity 0.2s; font-weight: bold; }
         button:hover { opacity: 0.8; }
-        .status-pill { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -73,9 +52,10 @@
                     <button onclick="ensureTestUser()" style="flex: 2; background: #4CBB17; color: white; border: none; padding: 12px; border-radius: 8px;">Sync 'test_user'</button>
                     <button onclick="resetSession()" style="flex: 1; background:#ef4444; color:#fff; border: none; padding: 12px; border-radius: 8px;">Wipe Data</button>
                 </div>
+            </div>
 
             <div class="card">
-                <h3>3. Skill Score Overrides</h3>
+                <h3>2. Skill Score Overrides</h3>
                 <p><small style="color:#64748b;">Adjust and click Apply to force specific routing.</small></p>
                 <div style="display: grid; gap: 12px; margin-top: 15px;">
                     <div><label style="display:flex; justify-content:space-between; font-size: 13px;">SolveX <span id="v-SolveX">0</span></label><input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')"></div>
@@ -88,6 +68,7 @@
             </div>
         </div>
 
+        <div class="output-stack">
             <div class="card">
                 <h3 style="margin-top: 0;">Live System Logs</h3>
                 <div id="log" class="log-box">System Initialized...</div>
@@ -117,15 +98,8 @@
 
         function updateVal(id) {
             const val = document.getElementById('s-' + id).value;
-            document.getElementById('v-' + id).innerText = val;
-        }
-
-        function resetSliders() {
-            const skills = ['SolveX', 'BoxPlot', 'LinearSystem', 'FigureGrowth', 'C6Transformation'];
-            skills.forEach(s => {
-                const slider = document.getElementById('s-' + s);
-                if (slider) { slider.value = 0; updateVal(s); }
-            });
+            const display = document.getElementById('v-' + id);
+            if(display) display.innerText = val;
         }
 
         function resetSession() {
@@ -144,7 +118,7 @@
                 log("test_user not found. Creating row...");
                 const { error: insErr } = await supabaseClient.from('assignment').insert({ userName: 'test_user' });
                 if (insErr) log("Insert failed: " + insErr.message);
-                else { log("Success! Created test_user."); resetSliders(); }
+                else { log("Success! Created test_user."); location.reload(); }
             } else {
                 log("test_user found. Syncing sliders...");
                 syncSliders(data);
@@ -155,7 +129,10 @@
             const skills = ['SolveX', 'BoxPlot', 'LinearSystem', 'FigureGrowth', 'C6Transformation'];
             skills.forEach(s => {
                 const slider = document.getElementById('s-' + s);
-                if (slider) { slider.value = data[s] || 0; updateVal(s); }
+                if (slider) { 
+                    slider.value = data[s] || 0; 
+                    updateVal(s); 
+                }
             });
         }
 
@@ -178,7 +155,6 @@
                 else log("Warning: loadNextQuestion() not found in hub.");
             }
         }
-
 
         ensureTestUser();
     </script>
