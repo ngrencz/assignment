@@ -4,12 +4,11 @@ let boxErrorCount = 0;
 function initBoxPlotGame() {
     isCurrentQActive = true;
     currentQSeconds = 0;
-    currentQCap = 120; // 2 minutes
+    currentQCap = 120; 
     boxErrorCount = 0;
 
-    // 1. Generate random but clean Box Plot markers
-    // Standard box plot splits data into 25% chunks
-    const median = Math.floor(Math.random() * 5) + 5; // 5-10
+    // Generate random but clean Box Plot markers
+    const median = Math.floor(Math.random() * 5) + 5; 
     const q1 = median - (Math.floor(Math.random() * 2) + 2);
     const q3 = median + (Math.floor(Math.random() * 3) + 3);
     const min = q1 - 3;
@@ -23,18 +22,21 @@ function initBoxPlotGame() {
 function renderBoxUI() {
     document.getElementById('q-title').innerText = "Interpreting Box Plots";
     document.getElementById('q-content').innerHTML = `
-        <div style="text-align:center; margin-bottom:20px;">
-            <canvas id="boxCanvas" width="400" height="100" style="border:1px solid #eee;"></canvas>
-        </div>
+        <canvas id="boxCanvas" width="400" height="120"></canvas>
+        
         <div id="box-question-area">
             <p><strong>Part A:</strong> What percent of data is <strong>above ${currentBoxData.q3}</strong>?</p>
-            <input type="number" id="box-ans-a" placeholder="%"> %
-            <hr>
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px;">
+                <input type="number" id="box-ans-a" placeholder="0" style="width:80px;"> 
+                <span style="font-weight:bold;">%</span>
+            </div>
+            
             <p><strong>Part B:</strong> Can you find the <strong>mean (average)</strong> just by looking at this plot?</p>
-            <button onclick="checkBoxLogic(true)">Yes</button>
-            <button onclick="checkBoxLogic(false)">No</button>
+            <div style="display:flex; gap:10px;">
+                <button onclick="checkBoxLogic(true)">Yes</button>
+                <button onclick="checkBoxLogic(false)">No</button>
+            </div>
         </div>
-        <div id="box-feedback" style="margin-top:15px; font-weight:bold;"></div>
     `;
     drawBoxPlot();
 }
@@ -42,14 +44,24 @@ function renderBoxUI() {
 function drawBoxPlot() {
     const canvas = document.getElementById('boxCanvas');
     const ctx = canvas.getContext('2d');
-    const scale = 15; // pixels per unit
-    const offset = 50;
+    const scale = 15; 
+    const offset = 60;
+    const y = 60;
 
-    ctx.clearRect(0, 0, 400, 100);
-    ctx.strokeStyle = "black";
+    ctx.clearRect(0, 0, 400, 120);
+    
+    // Draw Axis line for context
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(10, y + 40);
+    ctx.lineTo(390, y + 40);
+    ctx.stroke();
+
+    // Box Plot Styling
+    ctx.strokeStyle = "#1a1a1a"; // Black
     ctx.lineWidth = 2;
 
-    const y = 50;
     // Whiskers
     ctx.beginPath();
     ctx.moveTo(offset + currentBoxData.min * scale, y);
@@ -58,44 +70,57 @@ function drawBoxPlot() {
     ctx.lineTo(offset + currentBoxData.max * scale, y);
     ctx.stroke();
 
-    // Box
-    ctx.strokeRect(offset + currentBoxData.q1 * scale, y - 20, (currentBoxData.q3 - currentBoxData.q1) * scale, 40);
+    // Box (Filled with very light green for a modern look)
+    ctx.fillStyle = "#f0fdf4";
+    ctx.fillRect(offset + currentBoxData.q1 * scale, y - 25, (currentBoxData.q3 - currentBoxData.q1) * scale, 50);
+    ctx.strokeRect(offset + currentBoxData.q1 * scale, y - 25, (currentBoxData.q3 - currentBoxData.q1) * scale, 50);
     
-    // Median Line
+    // Median Line (Kelly Green)
+    ctx.strokeStyle = "#4CBB17";
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(offset + currentBoxData.median * scale, y - 20);
-    ctx.lineTo(offset + currentBoxData.median * scale, y + 20);
+    ctx.moveTo(offset + currentBoxData.median * scale, y - 25);
+    ctx.lineTo(offset + currentBoxData.median * scale, y + 25);
     ctx.stroke();
 }
 
 async function checkBoxLogic(val) {
-    const feedback = document.getElementById('box-feedback');
+    const feedback = document.getElementById('feedback-box');
+    feedback.style.display = "block";
+
     if (val === false) {
-        feedback.innerHTML = "<span style='color:green;'>Correct! Box plots show the median, not the mean.</span>";
+        feedback.className = "correct";
+        feedback.innerText = "Correct! Box plots show the median (middle value), but the mean cannot be calculated without the individual data points.";
         checkFinalBoxScore(true);
     } else {
         boxErrorCount++;
-        feedback.innerHTML = "<span style='color:red;'>Not quite. Think about what data points are missing.</span>";
+        feedback.className = "incorrect";
+        feedback.innerText = "Not quite. Think about it: does the box show the average of all numbers, or just the middle position?";
     }
 }
 
 async function checkFinalBoxScore(logicPass) {
     const ansA = parseInt(document.getElementById('box-ans-a').value);
-    // In a box plot, each segment (whisker/box half) is 25%
+    const feedback = document.getElementById('feedback-box');
+
+    // Each quartile segment is 25%
     if (ansA === 25 && logicPass) {
         let score = Math.max(1, 10 - (boxErrorCount * 2));
         
-        // Update Supabase
         await supabaseClient.from('assignment').update({ 
             BoxPlotQuartile: score,
             BoxPlotLogic: 10,
             BoxPlot: score 
         }).eq('userName', currentUser);
 
-        alert("Mastery Updated!");
-        loadNextQuestion();
-    } else {
+        setTimeout(() => {
+            alert("Mastery Updated!");
+            loadNextQuestion();
+        }, 1000);
+    } else if (ansA !== 25) {
         boxErrorCount++;
-        document.getElementById('box-feedback').innerText = "Check your percentage for Part A!";
+        feedback.className = "incorrect";
+        feedback.style.display = "block";
+        feedback.innerText = "Check your percentage for Part A. Remember, each 'whisker' and each 'half of the box' represents exactly 25% of the data.";
     }
 }
