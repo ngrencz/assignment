@@ -3,26 +3,31 @@ let currentEquations = [];
 let solveXErrorCount = 0;
 let problemsSolved = 0;
 let problemsNeeded = 4;
+let currentScore = 0;
 
 async function initSolveXGame() {
-    // NO 'let' here - these belong to the Hub
-    isCurrentQActive = true;
-    currentQSeconds = 0;
-    currentQCap = 240; 
+    window.isCurrentQActive = true;
+    window.currentQSeconds = 0;
     
     solveXErrorCount = 0;
     problemsSolved = 0;
 
-    // 1. Determine difficulty scaling from Supabase
+    // 1. Determine difficulty scaling
     try {
-        const { data } = await supabaseClient.from('assignment').select('SolveX').eq('userName', currentUser).single();
-        const currentScore = data ? data.SolveX : 0;
+        const { data } = await window.supabaseClient
+            .from('assignment')
+            .select('SolveX')
+            .eq('userName', window.currentUser)
+            .maybeSingle();
+        
+        currentScore = data ? (data.SolveX || 0) : 0;
 
-        if (currentScore >= 8) problemsNeeded = 2;
+        if (currentScore >= 8) problemsNeeded = 2; // Harder but fewer
         else if (currentScore >= 5) problemsNeeded = 3;
         else problemsNeeded = 4;
     } catch (e) {
-        problemsNeeded = 3; // Fallback
+        currentScore = 0;
+        problemsNeeded = 3;
     }
 
     generateEquations();
@@ -31,23 +36,55 @@ async function initSolveXGame() {
 
 function generateEquations() {
     currentEquations = [];
+    
     for (let i = 0; i < problemsNeeded; i++) {
-        let type = i % 3; 
-        if (type === 0) { // ax + b = c
+        // High Mastery (6+) includes Decimals and Fractions
+        let useAdvancedNumbers = (currentScore >= 6);
+        let type = Math.floor(Math.random() * 3); 
+
+        if (type === 0) { 
+            // Type: ax + b = c
+            let a, b, ans;
+            if (useAdvancedNumbers && Math.random() > 0.5) {
+                // Decimal Variation
+                a = (Math.floor(Math.random() * 20) + 10) / 10; // 1.0 to 3.0
+                ans = Math.floor(Math.random() * 10) + 1;
+                b = (Math.floor(Math.random() * 50) + 10) / 10; // 1.0 to 6.0
+                let c = parseFloat(((a * ans) + b).toFixed(2));
+                currentEquations.push({ text: `${a}x + ${b} = ${c}`, ans: ans, displayType: 'text' });
+            } else {
+                // Standard Integer
+                a = Math.floor(Math.random() * 8) + 2;
+                ans = Math.floor(Math.random() * 12) - 4;
+                b = Math.floor(Math.random() * 15) + 1;
+                let c = (a * ans) + b;
+                currentEquations.push({ text: `${a}x + ${b} = ${c}`, ans: ans, displayType: 'text' });
+            }
+        } 
+        else if (type === 1) { 
+            // Type: a(x + b) = c
             let a = Math.floor(Math.random() * 5) + 2;
-            let ans = Math.floor(Math.random() * 10) - 5;
-            let b = Math.floor(Math.random() * 10) + 1;
-            let c = (a * ans) + b;
-            currentEquations.push({ text: `${a}x + ${b} = ${c}`, ans: ans });
-        } else if (type === 1) { // a(x + b) = c
-            let a = Math.floor(Math.random() * 4) + 2;
-            let ans = Math.floor(Math.random() * 8);
-            let b = Math.floor(Math.random() * 5) + 1;
+            let ans = Math.floor(Math.random() * 10);
+            let b = Math.floor(Math.random() * 6) + 1;
             let c = a * (ans + b);
-            currentEquations.push({ text: `${a}(x + ${b}) = ${c}`, ans: ans });
-        } else { // Fractional proportions
-            let ans = 6; 
-            currentEquations.push({ text: "fraction", ans: ans });
+            currentEquations.push({ text: `${a}(x + ${b}) = ${c}`, ans: ans, displayType: 'text' });
+        } 
+        else { 
+            // Type: x/a + b = c (The Fraction Type)
+            let a = Math.floor(Math.random() * 4) + 2; // Denominator
+            let ans = Math.floor(Math.random() * 8) + 1;
+            let b = Math.floor(Math.random() * 10) + 1;
+            let x = a * ans; // Ensure x is an integer for the user to find
+            let c = (x / a) + b;
+
+            currentEquations.push({ 
+                displayType: 'fraction',
+                num: 'x', 
+                den: a, 
+                constant: b, 
+                result: c, 
+                ans: x 
+            });
         }
     }
 }
@@ -55,42 +92,34 @@ function generateEquations() {
 function renderSolveXUI() {
     document.getElementById('q-title').innerText = `Algebra: Multi-Step Equations`;
     let eq = currentEquations[problemsSolved];
-    
     let displayHtml = "";
-    if (eq.text === "fraction") {
+
+    if (eq.displayType === 'fraction') {
         displayHtml = `
-            <div style="display: flex; align-items: center; justify-content: center; gap: 15px; font-size: 2rem;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 2.5rem;">
                 <div style="text-align: center;">
-                    <div style="border-bottom: 2px solid black;">6</div>
-                    <div>x + 2</div>
+                    <div style="border-bottom: 3px solid var(--black); padding: 0 10px;">${eq.num}</div>
+                    <div>${eq.den}</div>
                 </div>
-                <span>=</span>
-                <div style="text-align: center;">
-                    <div style="border-bottom: 2px solid black;">3</div>
-                    <div>4</div>
-                </div>
+                <span>+ ${eq.constant} = ${eq.result}</span>
             </div>`;
     } else {
-        displayHtml = `<strong>${eq.text}</strong>`;
+        displayHtml = `<div style="font-size: 2.5rem; letter-spacing: 2px;">${eq.text}</div>`;
     }
 
-    
-
     document.getElementById('q-content').innerHTML = `
-        <div class="card" style="padding: 40px; text-align: center; font-size: 28px; margin-bottom: 20px;">
+        <div class="card" style="padding: 50px; text-align: center; margin-bottom: 25px;">
             ${displayHtml}
         </div>
-        
         <div style="text-align: center;">
-            <p style="color: var(--gray-text); margin-bottom: 10px;">Problem ${problemsSolved + 1} of ${problemsNeeded}</p>
-            <div style="display: flex; justify-content: center; gap: 10px; align-items: center;">
-                <span style="font-size: 1.5rem; font-weight: bold;">x =</span>
-                <input type="number" id="solve-ans" class="math-input" placeholder="?" style="width: 100px;">
-                <button onclick="checkSolveX()" class="primary-btn">Submit</button>
+            <p style="color: var(--gray-text); margin-bottom: 15px;">Problem ${problemsSolved + 1} of ${problemsNeeded}</p>
+            <div style="display: flex; justify-content: center; gap: 15px; align-items: center;">
+                <span style="font-size: 2rem; font-weight: bold;">x =</span>
+                <input type="number" id="solve-ans" class="math-input" step="any" placeholder="?" style="width: 120px; font-size: 1.5rem; padding: 10px;">
+                <button onclick="checkSolveX()" class="primary-btn">Submit Answer</button>
             </div>
         </div>
     `;
-    
     document.getElementById('feedback-box').style.display = 'none';
 }
 
@@ -100,17 +129,21 @@ async function checkSolveX() {
     const feedback = document.getElementById('feedback-box');
 
     if (isNaN(userAns)) return;
-
     feedback.style.display = "block";
 
-    if (Math.abs(userAns - correctAns) < 0.1) {
+    // Check with tolerance for decimals
+    if (Math.abs(userAns - correctAns) < 0.01) {
         problemsSolved++;
         feedback.className = "correct";
-        feedback.innerText = "Correct! Great algebraic thinking.";
+        feedback.innerText = "Correct! Excellent work.";
 
         if (problemsSolved >= problemsNeeded) {
-            let score = Math.max(1, 10 - solveXErrorCount);
-            await supabaseClient.from('assignment').update({ SolveX: score }).eq('userName', currentUser);
+            // Scoring: 10 base, minus 1 per error, floor at 1
+            let newScore = Math.max(1, 10 - solveXErrorCount);
+            await window.supabaseClient
+                .from('assignment')
+                .update({ SolveX: newScore })
+                .eq('userName', window.currentUser);
             
             setTimeout(() => { loadNextQuestion(); }, 1200);
         } else {
@@ -119,6 +152,6 @@ async function checkSolveX() {
     } else {
         solveXErrorCount++;
         feedback.className = "incorrect";
-        feedback.innerText = "Not quite. Check your inverse operations and try again!";
+        feedback.innerText = "Check your calculations. Remember to apply the same operation to both sides!";
     }
 }
