@@ -17,14 +17,17 @@ const TARGET_MINUTES = 12;
 // --- Global Timer Logic ---
 setInterval(() => {
     const timerEl = document.getElementById('timer-display');
+    if (!timerEl) return;
+
     const isIdle = (Date.now() - lastActivity > IDLE_LIMIT);
 
+    // Only increment time if active, not idle, and under the per-question cap
     if (!isIdle && isCurrentQActive && currentQSeconds < currentQCap) {
         totalWorkSeconds++;
         currentQSeconds++;
-        timerEl.style.color = "#2d3748";
+        timerEl.classList.remove('idle');
     } else {
-        timerEl.style.color = "#e53e3e"; // Red when idle or cap hit
+        timerEl.classList.add('idle'); // CSS handles the red color
     }
 
     let mins = Math.floor(totalWorkSeconds / 60);
@@ -41,9 +44,15 @@ setInterval(() => {
 
 // --- Navigation/Routing ---
 async function loadNextQuestion() {
+    // Reset UI State
     const feedback = document.getElementById('feedback-box');
-    if(feedback) feedback.style.display = 'none';
+    if(feedback) {
+        feedback.style.display = 'none';
+        feedback.className = ''; // Clear correct/incorrect classes
+    }
     
+    window.scrollTo(0,0); // Reset scroll for mobile users
+
     // Check if the user is specifically in the 6.2.4 path
     if (targetLesson === '6.2.4') {
         const lesson624Skills = [
@@ -54,18 +63,24 @@ async function loadNextQuestion() {
             initBoxPlotGame
         ];
 
-        // Pick a random skill from this specific set
+        // Pick a random skill from the 6.2.4 bank
         const randomSkillInitializer = lesson624Skills[Math.floor(Math.random() * lesson624Skills.length)];
-        randomSkillInitializer();
+        
+        // Ensure the function exists before calling
+        if (typeof randomSkillInitializer === 'function') {
+            randomSkillInitializer();
+        } else {
+            console.error("Skill initializer not found. Check script loading order.");
+        }
     } else {
-        // Fallback for other lessons if you add them later
-        document.getElementById('q-content').innerHTML = "This lesson is currently under development.";
+        document.getElementById('q-title').innerText = "Under Construction";
+        document.getElementById('q-content').innerHTML = `Lesson ${targetLesson} is not yet available.`;
     }
 }
 
 async function finishAssignment() {
     isCurrentQActive = false;
-    alert("Great work! You've completed your required practice time.");
+    alert("Time complete! Redirecting to your dashboard.");
     window.location.href = 'index.html';
 }
 
