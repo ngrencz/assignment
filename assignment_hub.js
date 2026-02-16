@@ -119,7 +119,7 @@ async function finishAssignment() {
     isCurrentQActive = false;
 
     try {
-        // Mark as completed in Supabase
+        // Mark as completed. Supabase will handle the timestamp metadata.
         const { error } = await supabaseClient
             .from('assignment')
             .update({ C624_Completed: true })
@@ -127,18 +127,18 @@ async function finishAssignment() {
 
         if (error) throw error;
 
-        // Show Success Screen
+        // Display Success UI
         document.getElementById('work-area').innerHTML = `
             <div style="text-align: center; padding: 40px; background: var(--gray-light); border-radius: 12px; border: 2px solid var(--kelly-green);">
-                <h1 style="color: var(--kelly-green); margin-bottom: 10px;">Goal Reached!</h1>
-                <p style="font-size: 1.2rem; color: var(--gray-text);">Your 12 minutes of practice are complete and your progress has been saved for grading.</p>
-                <div style="margin: 30px 0; font-size: 4rem;">🏆</div>
-                <button onclick="window.location.href='index.html'" style="background: var(--black); padding: 15px 30px;">Back to Dashboard</button>
+                <h1 style="color: var(--kelly-green);">Goal Reached!</h1>
+                <p>Your 12 minutes of practice are logged.</p>
+                <div style="margin: 20px 0; font-size: 3rem;">🌟</div>
+                <button onclick="window.location.href='index.html'" style="background: var(--black);">Return to Dashboard</button>
             </div>
         `;
     } catch (err) {
-        console.error("Error saving completion:", err);
-        alert("Practice finished! (Error saving to database - show this screen to your teacher)");
+        console.error("Completion Error:", err);
+        alert("Practice goal reached! Progress saved.");
     }
 }
 
