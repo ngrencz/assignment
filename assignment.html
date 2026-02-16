@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Assignment</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root { --primary: #00356B; --accent: #ed8936; }
+        body { font-family: sans-serif; background: #f0f4f8; margin: 0; padding: 20px; }
+        #header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        #work-area { background: white; padding: 30px; border-radius: 12px; min-height: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); position: relative; }
+        .stats { font-weight: bold; color: var(--secondary); }
+        #timer-display.idle { color: #e53e3e; } /* Turns red when idle */
+        .hidden { display: none; }
+        
+        /* Feedback Bar */
+        #feedback-box { margin-top: 20px; padding: 15px; border-radius: 8px; font-weight: bold; display: none; }
+        .correct { background: #c6f6d5; color: #22543d; border: 1px solid #38a169; }
+        .incorrect { background: #fed7d7; color: #822727; border: 1px solid #e53e3e; }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    <div>
+        <span id="user-display" class="stats">Loading Student...</span> | 
+        <span id="lesson-display" style="color: #4A5568;">Lesson</span>
+    </div>
+    <div>
+        Actual Work Time: <span id="timer-display">00:00</span>
+    </div>
+</div>
+
+<div id="work-area">
+    <div id="question-container">
+        <h2 id="q-title">Initializing...</h2>
+        <div id="q-content"></div>
+    </div>
+
+    <div id="feedback-box"></div>
+</div>
+
+<script src="assignment_logic.js"></script>
+</body>
+</html>
