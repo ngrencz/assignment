@@ -43,11 +43,14 @@ setInterval(() => {
 async function loadNextQuestion() {
     document.getElementById('feedback-box').style.display = 'none';
     
-    // In a real project, this logic branches out to different .js files
-    if (targetLesson === '6.2.4') {
+    // Diagnostic logic: which skill is lowest?
+    const { data } = await supabaseClient.from('assignment').select('*').eq('userName', currentUser).single();
+    
+    // If they are on Chapter 6, we can mix these in
+    if (data.LinearSystem < 7) {
+        initLinearSystemGame();
+    } else if (targetLesson === '6.2.4') {
         initTransformationGame();
-    } else {
-        document.getElementById('q-content').innerHTML = "Coming soon...";
     }
 }
 
