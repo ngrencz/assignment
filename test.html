@@ -1,84 +1,74 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>6.2.4 System Test Tool</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="style.css">
-    
-    <script src="skill_transformation.js"></script>
+<script src="skill_transformation.js"></script>
     <script src="skill_linearsystem.js"></script>
     <script src="skill_figuregrowth.js"></script>
     <script src="skill_solveX.js"></script>
     <script src="skill_boxplot.js"></script>
 
     <style>
-        .test-controls {
-            background: #f1f5f9;
-            padding: 20px;
-            border-radius: 12px;
+        .test-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--black);
+            padding-bottom: 10px;
             margin-bottom: 20px;
-            border: 2px dashed #cbd5e0;
         }
-        .status-pill {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-        .online { background: #c6f6d5; color: #22543d; }
-        .offline { background: #fed7d7; color: #822727; }
-        .log-box {
-            background: #1a1a1a;
-            color: #4CBB17;
-            padding: 15px;
+        .version-pill {
             font-family: monospace;
-            border-radius: 8px;
-            margin-top: 10px;
-            max-height: 150px;
-            overflow-y: auto;
+            font-size: 0.8rem;
+            background: var(--gray-light);
+            padding: 4px 10px;
+            border-radius: 5px;
+            border: 1px solid var(--gray-med);
         }
+        /* Existing test styles... */
+        .test-controls { background: #f1f5f9; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px dashed #cbd5e0; }
+        .log-box { background: #1a1a1a; color: #4CBB17; padding: 15px; font-family: monospace; border-radius: 8px; margin-top: 10px; max-height: 150px; overflow-y: auto; }
     </style>
 </head>
-<body>
+<body class="container">
 
-    <div class="container">
+    <div class="test-header">
         <h1>Dev <span class="accent-text">Tester</span></h1>
-        
-        <div class="test-controls">
-            <h3>1. Session Mocking</h3>
-            <button onclick="mockSession('test_user', '6.2.4')">Mock Lesson 6.2.4 Session</button>
-            <span id="session-status">No Session</span>
-
-            <h3>2. UI & Component Check</h3>
-            <p>Force-load specific modules to check "Kelly Green" styling:</p>
-            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                <button onclick="log('Loading X...'); initSolveXGame()">Solve X</button>
-                <button onclick="log('Loading Box...'); initBoxPlotGame()">Box Plot</button>
-                <button onclick="log('Loading Logic...'); initLinearSystemGame()">Linear Systems</button>
-                <button onclick="log('Loading Growth...'); initFigureGrowthGame()">Figure Growth</button>
-                <button onclick="log('Loading Trans...'); initTransformationGame()">Transformations</button>
-            </div>
-
-            <h3>3. Routing Logic (The "Hub" Test)</h3>
-            <p>This mimics how `assignment_hub.js` chooses a problem based on the "Lowest Score" logic.</p>
-            <button onclick="testNeedBasedRouting()" style="background: var(--black);">Run Routing Diagnostic</button>
-        </div>
-
-        <div id="log" class="log-box">System ready for testing...</div>
-        <hr>
-
-        <div id="work-area">
-            <h2 id="q-title">Assignment UI Output:</h2>
-            <div id="q-content"><em>The game UI will render here...</em></div>
-            <div id="feedback-box"></div>
-        </div>
+        <span class="version-pill">Local Version: v1.0.2</span>
     </div>
 
+    <div class="test-controls">
+        <h3>1. Session Mocking</h3>
+        <button onclick="mockSession('test_user', '6.2.4')">Mock Lesson 6.2.4 Session</button>
+        <span id="session-status" class="status-pill">No Session</span>
+
+        <h3>2. UI & Component Check</h3>
+        <p>Force-load specific modules to check "Kelly Green" styling:</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <button onclick="log('Loading X...'); initSolveXGame()">Solve X</button>
+            <button onclick="log('Loading Box...'); initBoxPlotGame()">Box Plot</button>
+            <button onclick="log('Loading Logic...'); initLinearSystemGame()">Linear Systems</button>
+            <button onclick="log('Loading Growth...'); initFigureGrowthGame()">Figure Growth</button>
+            <button onclick="log('Loading Trans...'); initTransformationGame()">Transformations</button>
+        </div>
+
+        <h3>3. Routing Logic (The "Hub" Test)</h3>
+        <p>This mimics how `assignment_hub.js` chooses a problem based on the "Lowest Score" logic.</p>
+        <button onclick="testNeedBasedRouting()" style="background: var(--black); color: white;">Run Routing Diagnostic</button>
+    </div>
+
+    <div id="log" class="log-box">System ready for testing...</div>
+    
+    <hr style="margin: 30px 0;">
+
+    <div id="work-area">
+        <h2 id="q-title">Assignment UI Output:</h2>
+        <div id="q-content" style="border: 1px solid #ddd; padding: 20px; border-radius: 8px; background: #fff;">
+            <em>The game UI will render here...</em>
+        </div>
+        <div id="feedback-box"></div>
+    </div>
     <script>
+        if (window.location.pathname.includes('test.html')) {
+    sessionStorage.setItem('current_user', 'tester');
+    sessionStorage.setItem('target_lesson', '6.2.4');
+}
         // Mocking Globals that the scripts expect
 let currentUser = '';
 let targetLesson = '';
