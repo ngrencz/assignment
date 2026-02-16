@@ -36,7 +36,7 @@
                         Username not found. Did you type it correctly?
                     </div>
                     <button onclick="createNewUser('${username}', '${lessonField.value}')" 
-                            style="background: #ed8936; font-size: 14px;">
+                            style="background: #ed8936; font-size: 14px; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">
                         No, this is my first time (Create Account)
                     </button>
                     <button onclick="location.reload()" 
@@ -58,18 +58,28 @@
         const msg = document.getElementById('msg');
         msg.innerText = "Creating account...";
 
+        // Initializing all skill columns to 0 for a new student
         const { error } = await supabase
             .from('assignment')
-            .insert([{ userName: username, C6Transformation: 0 }]);
+            .insert([{ 
+                userName: username, 
+                C6Transformation: 0,
+                LinearSystem: 0,
+                FigureGrowth: 0,
+                SolveX: 0,
+                BoxPlot: 0
+            }]);
 
         if (error) {
             msg.innerText = "Error creating account. Try a different name.";
+            console.error(error);
         } else {
             proceedToAssignment(username, lesson);
         }
     }
 
     function proceedToAssignment(username, lesson) {
+        // These are picked up by assignment_hub.js on the next page
         sessionStorage.setItem('current_user', username);
         sessionStorage.setItem('target_lesson', lesson);
         window.location.href = 'assignment.html';
