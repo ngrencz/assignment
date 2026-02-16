@@ -80,24 +80,49 @@
 
     <script>
         // Mocking Globals that the scripts expect
-        let currentUser = 'test_user';
-        let targetLesson = '6.2.4';
-        let isCurrentQActive = false;
-        let currentQSeconds = 0;
-        let currentQCap = 60;
+let currentUser = '';
+let targetLesson = '';
+let isCurrentQActive = false;
+let currentQSeconds = 0;
+let currentQCap = 60;
 
-        function log(msg) {
-            const l = document.getElementById('log');
-            l.innerHTML += `<br>> ${msg}`;
-            l.scrollTop = l.scrollHeight;
-        }
+function log(msg) {
+    const l = document.getElementById('log');
+    l.innerHTML += `<br>> ${msg}`;
+    l.scrollTop = l.scrollHeight;
+}
 
-        function mockSession(user, lesson) {
-            sessionStorage.setItem('current_user', user);
-            sessionStorage.setItem('target_lesson', lesson);
-            document.getElementById('session-status').innerText = `Active: ${user} | ${lesson}`;
-            log(`Session set: ${user} on ${lesson}`);
-        }
+// 1. IMPROVED MOCK FUNCTION
+function mockSession(user, lesson) {
+    // Set the variables the scripts actually use
+    currentUser = user;
+    targetLesson = lesson;
+    
+    // Set the storage for persistence
+    sessionStorage.setItem('current_user', user);
+    sessionStorage.setItem('target_lesson', lesson);
+    
+    document.getElementById('session-status').innerText = `Active: ${user} | ${lesson}`;
+    document.getElementById('session-status').className = 'status-pill online';
+    
+    log(`Session set: ${user} on ${lesson}`);
+    
+    // 2. TRIGGER THE HUB
+    // Now that variables are set, we tell the hub to start
+    if (typeof loadNextQuestion === "function") {
+        log("Triggering Hub logic...");
+        loadNextQuestion();
+    } else {
+        log("Error: loadNextQuestion not found. Check assignment_hub.js link.");
+    }
+}
+
+// Manually override the Hub's finishAssignment so the test page doesn't redirect you
+async function finishAssignment() {
+    log("🏁 TARGET REACHED: 12 Minutes recorded.");
+    alert("Test Complete: 12 Minute threshold crossed.");
+}
+        
 
         // MOCK loadNextQuestion to act as the Hub Diagnostic
         async function loadNextQuestion() {
