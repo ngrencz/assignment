@@ -1,75 +1,92 @@
-let currentSystem = {};
 let errorCount = 0;
+let pointsChecked = { hannah: false, wirt: false };
 
 function initLinearSystemGame() {
-    // 1. Generate a system where the lines are actually the same (Infinite Solutions)
-    // Example: 2x - 3y = 10  and  6y = 4x - 20 (which is 4x - 6y = 20)
-    const multiplier = Math.floor(Math.random() * 3) + 2; // 2, 3, or 4
-    const a = Math.floor(Math.random() * 5) + 1;
-    const b = Math.floor(Math.random() * 5) + 1;
-    const c = Math.floor(Math.random() * 10) + 5;
-
-    currentSystem = {
-        eq1: `${a}x - ${b}y = ${c}`,
-        eq2: `${b * multiplier}y = ${a * multiplier}x - ${c * multiplier}`,
-        point1: { x: -4, y: -6, name: "Hannah" }, // We can randomize these later
-        point2: { x: 20, y: 10, name: "Wirt" },
-        cap: 180 
-    };
-
-    currentQCap = currentSystem.cap;
+    // CurrentSkill for Hub/Supabase tracking
+    currentSkill = "LinearSystem";
+    currentQCap = 180;
     currentQSeconds = 0;
     isCurrentQActive = true;
     errorCount = 0;
+    pointsChecked = { hannah: false, wirt: false };
+
+    // Problem Data (Matching your image)
+    // Eq 1: 2x - 3y = 10
+    // Eq 2: 6y = 4x - 20 (Simplified: 4x - 6y = 20 -> 2x - 3y = 10)
+    currentSystem = {
+        eq1: "2x - 3y = 10",
+        eq2: "6y = 4x - 20",
+        hannah: { x: -4, y: -6, name: "Hannah" },
+        wirt: { x: 20, y: 10, name: "Wirt" }
+    };
 
     renderLinearUI();
 }
 
 function renderLinearUI() {
-    document.getElementById('q-title').innerText = "Systems: Who is Correct?";
+    document.getElementById('q-title').innerText = "Systems: Infinite Solutions?";
     document.getElementById('q-content').innerHTML = `
-        <div style="background: #f7fafc; padding: 15px; border-radius: 8px; margin-bottom: 15px; font-family: monospace;">
-            <strong>Equation 1:</strong> ${currentSystem.eq1}<br>
-            <strong>Equation 2:</strong> ${currentSystem.eq2}
+        <div style="text-align:center; margin-bottom:15px;">
+            <canvas id="linearCanvas" width="300" height="200" style="border:1px solid #ccc; background:white;"></canvas>
         </div>
-        <p>Check if these students found a valid solution (x, y):</p>
-        <div style="display: flex; flex-direction: column; gap: 10px;">
-            <button onclick="checkPoint('point1')">${currentSystem.point1.name}: (${currentSystem.point1.x}, ${currentSystem.point1.y})</button>
-            <button onclick="checkPoint('point2')">${currentSystem.point2.name}: (${currentSystem.point2.x}, ${currentSystem.point2.y})</button>
+        <div style="background: #edf2f7; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 14px; margin-bottom:10px;">
+            1: ${currentSystem.eq1}<br>2: ${currentSystem.eq2}
         </div>
-        <div id="linear-feedback" style="margin-top: 15px; font-weight: bold;"></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button id="btn-hannah" onclick="checkPoint('hannah')">Check Hannah<br>(-4, -6)</button>
+            <button id="btn-wirt" onclick="checkPoint('wirt')">Check Wirt<br>(20, 10)</button>
+        </div>
+        <div id="linear-msg" style="margin-top:10px; font-weight:bold; text-align:center; min-height:20px;"></div>
     `;
+    drawSystem();
 }
 
-async function checkPoint(pointKey) {
-    const p = currentSystem[pointKey];
-    // Check if point satisfies the first equation (simplified check)
-    // eq1: ax - by = c -> a*x - b*y == c
-    // Note: In a production version, we'd parse the generated a, b, c variables.
+function drawSystem() {
+    const canvas = document.getElementById('linearCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,300,200);
     
-    // For this specific curriculum problem:
-    const isCorrect = (2 * p.x - 3 * p.y === 10);
+    // Draw Simple Axis
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.beginPath(); ctx.moveTo(150,0); ctx.lineTo(150,200); ctx.moveTo(0,100); ctx.lineTo(300,100); ctx.stroke();
 
-    const feedback = document.getElementById('linear-feedback');
-    if (isCorrect) {
-        feedback.innerHTML = `<span style="color: green;">✔ ${p.name} is correct!</span>`;
-        // If they've checked both, trigger mastery update
-        if (p.verified) finishLinearStep();
-        p.verified = true;
+    // Draw the Line (Both eq are same, so we draw one line)
+    // y = (2/3)x - 10/3
+    ctx.strokeStyle = "#3182ce";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 100 - (-10/3 * 10)); // Simple scaling for viz
+    ctx.lineTo(300, 100 - (10 * 2)); 
+    ctx.stroke();
+}
+
+async function checkPoint(person) {
+    const p = currentSystem[person];
+    const msg = document.getElementById('linear-msg');
+    
+    // Verification logic: 2x - 3y = 10
+    const val = (2 * p.x) - (3 * p.y);
+    
+    if (val === 10) {
+        msg.innerHTML = `<span style="color:green;">${p.name} is Correct!</span>`;
+        pointsChecked[person] = true;
+        document.getElementById(`btn-${person}`).style.background = "#c6f6d5";
     } else {
         errorCount++;
-        feedback.innerHTML = `<span style="color: red;">✘ That is not a solution.</span>`;
+        msg.innerHTML = `<span style="color:red;">${p.name} is Incorrect.</span>`;
+    }
+
+    if (pointsChecked.hannah && pointsChecked.wirt) {
+        setTimeout(finalizeLinear, 1500);
     }
 }
 
-async function finishLinearStep() {
-    alert("Both are correct! This means the lines are actually the same line (Infinite Solutions).");
-    let score = Math.max(1, 10 - (errorCount * 2));
+async function finalizeLinear() {
+    alert("Both Hannah and Wirt are correct! This confirms that the two equations describe the same line.");
     
-    // Update Supabase
-    await supabaseClient.from('assignment')
-        .update({ LinearSystem: score })
-        .eq('userName', currentUser);
-
-    loadNextQuestion(); // Back to Hub
+    let score = Math.max(1, 10 - (errorCount * 2));
+    await supabaseClient.from('assignment').update({ LinearSystem: score }).eq('userName', currentUser);
+    
+    loadNextQuestion(); // Hub takes back control
 }
