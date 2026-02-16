@@ -2,7 +2,6 @@
 const SB_URL = "https://khazeoycsjdqnmwodncw.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoYXplb3ljc2pkcW5td29kbmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MDMwOTMsImV4cCI6MjA3ODQ3OTA5M30.h-WabaGcQZ968sO2ImetccUaRihRFmO2mUKCdPiAbEI";
 
-// Initialize the client globally so test.html can see it
 window.supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
 // Global State
@@ -11,42 +10,56 @@ window.isCurrentQActive = false;
 window.currentQSeconds = 0;
 window.currentUser = sessionStorage.getItem('current_user') || 'test_user';
 window.targetLesson = sessionStorage.getItem('target_lesson') || '6.2.4';
-
-// Logic Tracking - Must be window. so loadNextQuestion sees them
+window.lastActivity = Date.now();
+window.isIdle = false;
 window.hasDonePrimaryLesson = false;
 window.skillsCompletedThisSession = []; 
-let lastActivity = Date.now();
-let canCount = false; 
-let resumeTimeout = null;
+window.canCount = false; 
+window.resumeTimeout = null;
 
-// --- Tab Visibility Logic ---
+// --- Activity & Tab Visibility ---
+['mousemove', 'keydown', 'mousedown', 'touchstart'].forEach(evt => {
+    window.addEventListener(evt, () => {
+        window.lastActivity = Date.now();
+        if (window.isIdle) {
+            window.isIdle = false;
+            if (typeof log === "function") log("👤 User returned. Activity detected.");
+        }
+    });
+});
+
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-        canCount = false;
-        clearTimeout(resumeTimeout);
+        window.canCount = false;
+        clearTimeout(window.resumeTimeout);
         if (typeof log === "function") log("⏸️ Tab hidden: Timer stopped.");
     } else {
         if (typeof log === "function") log("⏱️ Tab active: Resuming in 20s...");
-        resumeTimeout = setTimeout(() => {
-            canCount = true;
-            if (typeof log === "function") log("▶️ 20s elapsed: Timer resumed.");
+        window.resumeTimeout = setTimeout(() => {
+            window.canCount = true;
+            if (typeof log === "function") log("▶️ 20s penalty elapsed: Timer resumed.");
         }, 20000); 
     }
 });
 
-// Initial trigger to start the first 20s countdown on load
-resumeTimeout = setTimeout(() => { canCount = true; }, 20000);
+// Initial startup countdown
+window.resumeTimeout = setTimeout(() => { window.canCount = true; }, 20000);
 
 // --- The Master Timer Loop ---
 setInterval(() => {
     const statePill = document.getElementById('timer-state-pill');
     const totalDisplay = document.getElementById('debug-total-time');
+    const qTimeDisplay = document.getElementById('debug-q-time');
     
-    // Check if a question is actually visible (not just "Wait...")
+    // Inactivity check (30 seconds)
+    const secondsSinceLastActivity = (Date.now() - window.lastActivity) / 1000;
+    if (secondsSinceLastActivity > 30) window.isIdle = true;
+
+    // Check if a question is actually visible
     const qContent = document.getElementById('q-content');
     const hasQuestion = qContent && qContent.innerHTML.length > 50 && !qContent.innerText.includes("Wait...");
 
-    if (window.isCurrentQActive && canCount && hasQuestion) {
+    if (window.isCurrentQActive && window.canCount && hasQuestion && !window.isIdle) {
         window.totalSecondsWorked++;
         window.currentQSeconds++;
         sessionStorage.setItem('total_work_time', window.totalSecondsWorked);
@@ -55,6 +68,8 @@ setInterval(() => {
         let mins = Math.floor(window.totalSecondsWorked / 60);
         let secs = window.totalSecondsWorked % 60;
         if (totalDisplay) totalDisplay.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs} / 12:00`;
+        if (qTimeDisplay) qTimeDisplay.innerText = `${window.currentQSeconds}s`;
+        
         if (statePill) {
             statePill.innerText = "RUNNING";
             statePill.style.background = "#22c55e";
@@ -64,14 +79,17 @@ setInterval(() => {
     } else {
         if (statePill) {
             if (!hasQuestion) {
-                statePill.innerText = "NO QUESTION LOADED";
-                statePill.style.background = "#ef4444";
-            } else if (!canCount) {
-                statePill.innerText = "TAB COOLDOWN (20s)";
+                statePill.innerText = "NO QUESTION";
+                statePill.style.background = "#64748b";
+            } else if (window.isIdle) {
+                statePill.innerText = "IDLE PAUSE (30s+)";
+                statePill.style.background = "#f59e0b";
+            } else if (!window.canCount) {
+                statePill.innerText = "TAB PENALTY (20s)";
                 statePill.style.background = "#3b82f6";
             } else {
                 statePill.innerText = "PAUSED";
-                statePill.style.background = "#64748b";
+                statePill.style.background = "#ef4444";
             }
         }
     }
@@ -79,6 +97,7 @@ setInterval(() => {
 
 // --- Adaptive Routing Logic ---
 async function loadNextQuestion() {
+    window.currentQSeconds = 0; // Reset Q timer
     const feedback = document.getElementById('feedback-box');
     if(feedback) {
         feedback.style.display = 'none';
@@ -88,22 +107,21 @@ async function loadNextQuestion() {
     window.scrollTo(0,0);
 
     const skillMap = [
-        { id: 'C6Transformation', fn: initTransformationGame },
-        { id: 'LinearSystem', fn: initLinearSystemGame },
-        { id: 'FigureGrowth', fn: initFigureGrowthGame },
-        { id: 'SolveX', fn: initSolveXGame },
-        { id: 'BoxPlot', fn: initBoxPlotGame }
-    ];
+        { id: 'C6Transformation', fn: typeof initTransformationGame !== 'undefined' ? initTransformationGame : null },
+        { id: 'LinearSystem', fn: typeof initLinearSystemGame !== 'undefined' ? initLinearSystemGame : null },
+        { id: 'FigureGrowth', fn: typeof initFigureGrowthGame !== 'undefined' ? initFigureGrowthGame : null },
+        { id: 'SolveX', fn: typeof initSolveXGame !== 'undefined' ? initSolveXGame : null },
+        { id: 'BoxPlot', fn: typeof initBoxPlotGame !== 'undefined' ? initBoxPlotGame : null }
+    ].filter(s => s.fn !== null); // Only include loaded scripts
 
     if (window.targetLesson === '6.2.4') {
-        // ADD window. HERE
         if (!window.hasDonePrimaryLesson) {
             window.hasDonePrimaryLesson = true;
             window.skillsCompletedThisSession.push('C6Transformation');
             return initTransformationGame();
         }
 
-        const { data, error } = await window.supabaseClient // Use window. here too
+        const { data, error } = await window.supabaseClient
             .from('assignment')
             .select('*')
             .eq('userName', window.currentUser)
@@ -114,7 +132,6 @@ async function loadNextQuestion() {
             return skillMap[Math.floor(Math.random() * skillMap.length)].fn();
         }
 
-        // ADD window. HERE
         let availableSkills = skillMap.filter(s => !window.skillsCompletedThisSession.includes(s.id));
         
         if (availableSkills.length === 0) {
@@ -122,10 +139,11 @@ async function loadNextQuestion() {
             availableSkills = skillMap;
         }
 
+        // Sort by lowest mastery first
         availableSkills.sort((a, b) => (data[a.id] || 0) - (data[b.id] || 0));
 
         const nextSkill = availableSkills[0];
-        window.skillsCompletedThisSession.push(nextSkill.id); // AND window. HERE
+        window.skillsCompletedThisSession.push(nextSkill.id);
         nextSkill.fn();
 
     } else {
@@ -136,9 +154,8 @@ async function loadNextQuestion() {
 
 async function finishAssignment() {
     window.isCurrentQActive = false;
-
     try {
-        const { error } = await supabaseClient
+        const { error } = await window.supabaseClient
             .from('assignment')
             .update({ C624_Completed: true })
             .eq('userName', window.currentUser);
@@ -149,13 +166,11 @@ async function finishAssignment() {
             <div style="text-align: center; padding: 40px; background: #f8fafc; border-radius: 12px; border: 2px solid #22c55e;">
                 <h1 style="color: #22c55e;">Goal Reached!</h1>
                 <p>Your 12 minutes of practice are logged.</p>
-                <div style="margin: 20px 0; font-size: 3rem;">🌟</div>
-                <button onclick="window.location.href='index.html'" style="background: #000; color: white; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;">Return to Dashboard</button>
+                <button onclick="location.reload()" style="background: #000; color: white; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;">Start New Session</button>
             </div>
         `;
     } catch (err) {
         console.error("Completion Error:", err);
-        alert("Practice goal reached! Progress saved.");
     }
 }
 
