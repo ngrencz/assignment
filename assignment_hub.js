@@ -24,13 +24,16 @@ function checkWindowSize() {
     const screenHeight = window.screen.availHeight;
     const winWidth = window.outerWidth;
     const winHeight = window.outerHeight;
+    const overlay = document.getElementById('size-overlay');
 
     // Pause if window is less than 90% of screen
     if (winWidth < (screenWidth * 0.9) || winHeight < (screenHeight * 0.9)) {
         window.isWindowLargeEnough = false;
+        if (overlay) overlay.classList.add('active'); // SHOW OVERLAY
         if (typeof log === "function") log("⚠️ Window not maximized/large enough.");
     } else {
         window.isWindowLargeEnough = true;
+        if (overlay) overlay.classList.remove('active'); // HIDE OVERLAY
     }
 }
 
