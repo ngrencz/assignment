@@ -24,8 +24,10 @@ setInterval(() => {
     const timerEl = document.getElementById('timer-display');
     if (!timerEl) return;
 
+    // Check for inactivity (Idle Logic)
     const isIdle = (Date.now() - lastActivity > IDLE_LIMIT);
 
+    // Only increment time if active and under the current question's cap
     if (!isIdle && isCurrentQActive && currentQSeconds < currentQCap) {
         totalWorkSeconds++;
         currentQSeconds++;
@@ -34,11 +36,17 @@ setInterval(() => {
         timerEl.classList.add('idle');
     }
 
+    // Calculate display values
     let mins = Math.floor(totalWorkSeconds / 60);
     let secs = totalWorkSeconds % 60;
+    
+    // Update the UI
     timerEl.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 
-    if (mins >= TARGET_MINUTES) { finishAssignment(); }
+    // Final Check: Did we hit 12 minutes?
+    if (mins >= TARGET_MINUTES) { 
+        finishAssignment(); 
+    }
 }, 1000);
 
 ['mousedown', 'keydown', 'mousemove', 'touchstart'].forEach(e => 
