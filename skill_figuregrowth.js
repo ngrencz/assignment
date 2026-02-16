@@ -1,11 +1,15 @@
+// Unique variables for this module (keep 'let')
 let currentPattern = {};
 let figureErrorCount = 0;
 let currentSubSkill = ""; // FigureRule, FigureDraw, or FigureX
 
 function initFigureGrowthGame() {
     isCurrentQActive = true;
+    
+    // NO 'let' here - these belong to the Hub
     currentQSeconds = 0;
-    currentQCap = 180;
+    currentQCap = 180; 
+    
     figureErrorCount = 0;
 
     // 1. Generate a random linear pattern: y = mx + b
@@ -31,33 +35,39 @@ function renderFigureUI() {
     document.getElementById('q-title').innerText = "Tile Pattern Growth";
     
     let content = `
-        <div style="background: var(--gray-light); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid var(--gray-med);">
-            <p style="margin: 0 0 10px 0;"><strong>Figure 2</strong> has <span class="accent-text">${currentPattern.fig2Count}</span> tiles.</p>
-            <p style="margin: 0;"><strong>Figure 6</strong> has <span class="accent-text">${currentPattern.fig6Count}</span> tiles.</p>
+        <div style="background: var(--gray-light); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid var(--gray-med); text-align: center;">
+            <p style="margin: 0 0 10px 0; font-size: 1.1rem;"><strong>Figure 2</strong> has <span class="accent-text" style="font-weight:bold;">${currentPattern.fig2Count}</span> tiles.</p>
+            <p style="margin: 0; font-size: 1.1rem;"><strong>Figure 6</strong> has <span class="accent-text" style="font-weight:bold;">${currentPattern.fig6Count}</span> tiles.</p>
         </div>
     `;
+
+    
 
     if (currentSubSkill === 'FigureRule') {
         content += `
             <p>Find the rule for the pattern:</p>
-            <div style="font-size: 1.2rem; font-weight: bold;">
-                y = <input type="number" id="input-m" placeholder="m" style="width:70px"> x + 
-                <input type="number" id="input-b" placeholder="b" style="width:70px">
+            <div style="font-size: 1.5rem; font-weight: bold; text-align: center; margin: 20px 0;">
+                y = <input type="number" id="input-m" placeholder="m" class="math-input" style="width:80px"> x + 
+                <input type="number" id="input-b" placeholder="b" class="math-input" style="width:80px">
             </div>
         `;
     } else if (currentSubSkill === 'FigureX') {
         content += `
             <p>Based on the growth, how many tiles will be in <strong>Figure ${currentPattern.targetX}</strong>?</p>
-            <input type="number" id="input-ans" placeholder="Total tiles" style="width: 150px;">
+            <div style="text-align: center; margin: 20px 0;">
+                <input type="number" id="input-ans" placeholder="Total tiles" class="math-input" style="width: 180px;">
+            </div>
         `;
-    } else { // FigureDraw logic
+    } else { // Figure 3 count
         content += `
             <p>Sketch <strong>Figure 3</strong> on your paper. How many tiles should it have in total?</p>
-            <input type="number" id="input-ans" placeholder="Tiles in Fig 3" style="width: 150px;">
+            <div style="text-align: center; margin: 20px 0;">
+                <input type="number" id="input-ans" placeholder="Tiles in Fig 3" class="math-input" style="width: 180px;">
+            </div>
         `;
     }
 
-    content += `<br><br><button onclick="checkFigureAns()">Submit Answer</button>`;
+    content += `<div style="text-align:center;"><button onclick="checkFigureAns()" class="primary-btn">Submit Answer</button></div>`;
     document.getElementById('q-content').innerHTML = content;
 }
 
@@ -93,27 +103,16 @@ async function checkFigureAns() {
         feedback.className = "incorrect";
         feedback.innerHTML = `
             <span>Not quite.</span><br>
-            <small>Hint: The change in tiles between Fig 2 and Fig 6 is <strong>${currentPattern.fig6Count - currentPattern.fig2Count}</strong> over 4 steps. Divide that to find your growth rate (m)!</small>
+            <small>Hint: The tiles increased by <strong>${currentPattern.fig6Count - currentPattern.fig2Count}</strong> over 4 figures (6 minus 2). Divide to find the growth rate (m)!</small>
         `;
     }
 }
 
 async function updateFigureMastery(score) {
-    const { data } = await supabaseClient.from('assignment').select('*').eq('userName', currentUser).single();
-    
+    // Simplified update to trigger Hub logic
     let updates = {};
     updates[currentSubSkill] = score;
-
-    const subColumns = ['FigureRule', 'FigureDraw', 'FigureX'];
-    let total = score;
-    let count = 1;
-    subColumns.forEach(col => {
-        if (col !== currentSubSkill && data[col] !== null) {
-            total += data[col];
-            count++;
-        }
-    });
-    updates['FigureGrowth'] = Math.round(total / count);
+    updates['FigureGrowth'] = score; 
 
     await supabaseClient.from('assignment').update(updates).eq('userName', currentUser);
 }
