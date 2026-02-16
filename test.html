@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>6.2.4 System Test Tool</title>
+    <title>6.2.4 System Debugger</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <script src="skill_transformation.js"></script>
@@ -15,130 +15,133 @@
     <link rel="stylesheet" href="style.css">
 
     <style>
-        .test-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #000;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-        }
-        .version-pill {
-            font-family: monospace;
-            font-size: 0.8rem;
-            background: #edf2f7;
-            padding: 4px 10px;
-            border-radius: 5px;
-            border: 1px solid #cbd5e0;
-        }
-        .test-controls { background: #f1f5f9; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px dashed #cbd5e0; }
-        .log-box { background: #1a1a1a; color: #4CBB17; padding: 15px; font-family: monospace; border-radius: 8px; margin-top: 10px; max-height: 150px; overflow-y: auto; }
-        #work-area { margin-top: 20px; padding: 20px; border: 1px solid #eee; border-radius: 10px; }
+        :root { --panel-bg: #f8fafc; --border: #e2e8f0; }
+        body { padding: 20px; font-family: sans-serif; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: white; border: 1px solid var(--border); padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .control-group { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        label { display: block; font-weight: bold; font-size: 0.8rem; margin-bottom: 5px; color: #64748b; }
+        .log-box { background: #1a1a1a; color: #4CBB17; padding: 15px; font-family: monospace; border-radius: 8px; height: 200px; overflow-y: auto; font-size: 13px; }
+        input[type="range"] { width: 100%; }
+        .status-pill { padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .status-online { background: #dcfce7; color: #166534; }
     </style>
 </head>
-<body class="container">
+<body>
 
-    <div class="test-header">
-        <h1>Dev <span class="accent-text">Tester</span></h1>
-        <span class="version-pill">Local Version: v1.0.4</span>
+    <div style="margin-bottom: 20px;">
+        <h1>Dev <span class="accent-text">Control Panel</span></h1>
+        <p>Lesson 6.2.4 | System Integration Tester</p>
     </div>
 
-    <div class="test-controls">
-        <h3>1. Session Mocking</h3>
-        <button onclick="mockSession('test_user', '6.2.4')">Mock Lesson 6.2.4 Session</button>
-        <span id="session-status">No Session</span>
+    <div class="grid">
+        <div class="card">
+            <div class="control-group">
+                <h3>1. Database Sync</h3>
+                <button onclick="ensureTestUser()">Check/Create 'test_user'</button>
+                <button onclick="resetSession()" style="background:#f1f5f9; color:#000;">Clear Session</button>
+            </div>
 
-        <h3>2. UI & Component Check</h3>
-        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
-            <button onclick="log('Loading X...'); initSolveXGame()">Solve X</button>
-            <button onclick="log('Loading Box...'); initBoxPlotGame()">Box Plot</button>
-            <button onclick="log('Loading Logic...'); initLinearSystemGame()">Linear Systems</button>
-            <button onclick="log('Loading Growth...'); initFigureGrowthGame()">Figure Growth</button>
-            <button onclick="log('Loading Trans...'); initTransformationGame()">Transformations</button>
+            <div class="control-group">
+                <h3>2. Variable Overrides (Live DB)</h3>
+                <p><small>Adjust sliders then click "Apply & Route"</small></p>
+                
+                <label>SolveX Score: <span id="v-SolveX">0</span></label>
+                <input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')">
+
+                <label>BoxPlot Score: <span id="v-BoxPlot">0</span></label>
+                <input type="range" id="s-BoxPlot" min="0" max="10" value="0" oninput="updateVal('BoxPlot')">
+
+                <label>LinearSystem Score: <span id="v-LinearSystem">0</span></label>
+                <input type="range" id="s-LinearSystem" min="0" max="10" value="0" oninput="updateVal('LinearSystem')">
+
+                <label>FigureGrowth Score: <span id="v-FigureGrowth">0</span></label>
+                <input type="range" id="s-FigureGrowth" min="0" max="10" value="0" oninput="updateVal('FigureGrowth')">
+
+                <label>Transformations Score: <span id="v-C6Transformation">0</span></label>
+                <input type="range" id="s-C6Transformation" min="0" max="10" value="0" oninput="updateVal('C6Transformation')">
+
+                <button onclick="applyScoresAndRoute()" style="width:100%; margin-top:15px; background:#000; color:#fff;">Apply & Route Next Question</button>
+            </div>
         </div>
 
-        <h3>3. Routing Diagnostic</h3>
-        <button onclick="testNeedBasedRouting()" style="background: #000; color: #fff; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Run Routing Diagnostic</button>
+        <div class="card">
+            <h3>System Logs</h3>
+            <div id="log" class="log-box">Initialized...</div>
+            
+            <div id="work-area" style="margin-top:20px; border-top: 2px solid #eee; padding-top:20px;">
+                <h2 id="q-title" style="font-size: 1.2rem;">Live Output:</h2>
+                <div id="q-content"><em>Waiting for routing...</em></div>
+                <div id="feedback-box" style="display:none; margin-top:10px; padding:10px; border-radius:8px;"></div>
+            </div>
+        </div>
     </div>
 
-    <div id="log" class="log-box">System ready for testing...</div>
-    
-    <hr style="margin: 30px 0;">
-
-    <div id="work-area">
-        <h2 id="q-title">Assignment UI Output:</h2>
-        <div id="q-content"><em>The game UI will render here...</em></div>
-        <div id="feedback-box"></div>
-    </div>
+    <script src="assignment_hub.js"></script>
 
     <script>
-        // Mocking GlobalscurrentUser = '';
-        targetLesson = '';
-        isCurrentQActive = false;
-        currentQSeconds = 0;
-        currentQCap = 60;
-
+        // Use Global Window object to avoid 'let' redeclaration issues
+        window.currentUser = 'test_user';
+        window.targetLesson = '6.2.4';
+        
         function log(msg) {
             const l = document.getElementById('log');
             l.innerHTML += `<br>> ${msg}`;
             l.scrollTop = l.scrollHeight;
         }
 
-        function mockSession(user, lesson) {
-            currentUser = user;
-            targetLesson = lesson;
-            sessionStorage.setItem('current_user', user);
-            sessionStorage.setItem('target_lesson', lesson);
-            document.getElementById('session-status').innerText = `Active: ${user}`;
-            log(`Session set: ${user}`);
-            loadNextQuestion();
+        function updateVal(id) {
+            document.getElementById('v-' + id).innerText = document.getElementById('s-' + id).value;
         }
 
-        async function loadNextQuestion() {
-            log("Hub requested next question...");
-            testNeedBasedRouting();
+        function resetSession() {
+            sessionStorage.clear();
+            log("Session cleared. Reloading...");
+            location.reload();
         }
 
-        async function testNeedBasedRouting() {
-            if (!currentUser) {
-                log("Error: No user set. Click Mock Session first.");
-                return;
-            }
-            log("Fetching scores from Supabase...");
-            try {
-                const { data, error } = await supabaseClient
-                    .from('assignment')
-                    .select('*')
-                    .eq('userName', currentUser)
-                    .single();
-
-                if (error) throw error;
-
-                // !!! DOUBLE CHECK THESE NAMES MATCH YOUR SUPABASE COLUMNS !!!
-                const skills = [
-                    { name: 'SolveX', score: data.SolveX || 0, fn: initSolveXGame },
-                    { name: 'BoxPlot', score: data.BoxPlot || 0, fn: initBoxPlotGame },
-                    { name: 'LinearSystem', score: data.LinearSystem || 0, fn: initLinearSystemGame },
-                    { name: 'FigureGrowth', score: data.FigureGrowth || 0, fn: initFigureGrowthGame },
-                    { name: 'C6Transformation', score: data.C6Transformation || 0, fn: initTransformationGame }
-                ];
-
-                skills.sort((a, b) => a.score - b.score);
-                log(`LOWEST SCORE: ${skills[0].name} (${skills[0].score}/10)`);
-                skills[0].fn();
-
-            } catch (e) {
-                log("Routing Test Failed. See Browser Console (F12).");
-                console.error("Diagnostic Error:", e);
+        async function ensureTestUser() {
+            log("Checking for 'test_user' in DB...");
+            const { data, error } = await supabaseClient.from('assignment').select('*').eq('userName', 'test_user').maybeSingle();
+            
+            if (!data) {
+                log("User missing. Creating 'test_user' with default scores...");
+                const { error: insErr } = await supabaseClient.from('assignment').insert([{
+                    userName: 'test_user',
+                    SolveX: 0, BoxPlot: 0, LinearSystem: 0, FigureGrowth: 0, C6Transformation: 0
+                }]);
+                if (insErr) log("Error creating user: " + insErr.message);
+                else log("Success! 'test_user' ready.");
+            } else {
+                log("User found. Syncing sliders to DB values...");
+                ['SolveX', 'BoxPlot', 'LinearSystem', 'FigureGrowth', 'C6Transformation'].forEach(s => {
+                    document.getElementById('s-' + s).value = data[s] || 0;
+                    updateVal(s);
+                });
             }
         }
 
-        async function finishAssignment() {
-            log("🏁 TARGET REACHED.");
-            alert("12 Minute threshold crossed.");
+        async function applyScoresAndRoute() {
+            log("Applying custom scores to DB...");
+            const updates = {
+                SolveX: parseInt(document.getElementById('s-SolveX').value),
+                BoxPlot: parseInt(document.getElementById('s-BoxPlot').value),
+                LinearSystem: parseInt(document.getElementById('s-LinearSystem').value),
+                FigureGrowth: parseInt(document.getElementById('s-FigureGrowth').value),
+                C6Transformation: parseInt(document.getElementById('s-C6Transformation').value)
+            };
+
+            const { error } = await supabaseClient.from('assignment').update(updates).eq('userName', 'test_user');
+            
+            if (error) log("Update failed: " + error.message);
+            else {
+                log("DB Updated. Triggering Hub logic...");
+                loadNextQuestion(); // This function should be in your assignment_hub.js
+            }
         }
+
+        // Initialize user on load
+        ensureTestUser();
     </script>
-
-    <script src="assignment_hub.js"></script>
 </body>
 </html>
