@@ -43,15 +43,14 @@ setInterval(() => {
 async function loadNextQuestion() {
     document.getElementById('feedback-box').style.display = 'none';
     
-    // Choose a random module to test
-    const pick = Math.floor(Math.random() * 3);
+    // Randomly select a module from the pool
+    const pick = Math.floor(Math.random() * 4);
     
-    if (pick === 0) {
-        initTransformationGame();
-    } else if (pick === 1) {
-        initLinearSystemGame();
-    } else {
-        initFigureGrowthGame();
+    switch(pick) {
+        case 0: initTransformationGame(); break;
+        case 1: initLinearSystemGame(); break;
+        case 2: initFigureGrowthGame(); break;
+        case 3: initSolveXGame(); break;
     }
 }
 
