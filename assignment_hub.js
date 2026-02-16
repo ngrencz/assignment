@@ -21,31 +21,53 @@ const TARGET_MINUTES = 12;
 
 // --- Global Timer Logic ---
 setInterval(() => {
-    const timerEl = document.getElementById('timer-display');
-    if (!timerEl) return;
+    // 1. Grab UI elements (these only exist if you're on test.html)
+    const statePill = document.getElementById('timer-state-pill');
+    const totalDisplay = document.getElementById('debug-total-time');
+    const qDisplay = document.getElementById('debug-q-time');
+    const hubTimer = document.getElementById('total-timer'); // The student-facing timer
 
-    // Check for inactivity (Idle Logic)
-    const isIdle = (Date.now() - lastActivity > IDLE_LIMIT);
-
-    // Only increment time if active and under the current question's cap
-    if (!isIdle && isCurrentQActive && currentQSeconds < currentQCap) {
-        totalWorkSeconds++;
+    // 2. Logic for when a question is active
+    if (isCurrentQActive) {
         currentQSeconds++;
-        timerEl.classList.remove('idle');
+        totalSecondsWorked++;
+
+        // Save to Session Storage so a refresh doesn't lose time
+        sessionStorage.setItem('total_work_time', totalSecondsWorked);
+
+        // Update the Control Panel Status (Test Mode)
+        if (statePill) {
+            statePill.innerText = "RUNNING";
+            statePill.style.background = "#22c55e"; // Green
+        }
+
+        // Format and Update Total Time (M:SS)
+        let mins = Math.floor(totalSecondsWorked / 60);
+        let secs = totalSecondsWorked % 60;
+        let formattedTime = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+        if (totalDisplay) totalDisplay.innerText = `${formattedTime} / 12:00`;
+        if (hubTimer) hubTimer.innerText = `${formattedTime} / 12:00`;
+        
+        // Update Individual Question Clock
+        if (qDisplay) qDisplay.innerText = currentQSeconds + "s";
+
+        // Check for Completion (720 seconds = 12 minutes)
+        if (totalSecondsWorked >= 720) {
+            isCurrentQActive = false;
+            if (typeof log === "function") log("🎯 12-Minute Goal Reached!");
+            finishAssignment(); // Your function to redirect/save
+        }
+
     } else {
-        timerEl.classList.add('idle');
-    }
-
-    // Calculate display values
-    let mins = Math.floor(totalWorkSeconds / 60);
-    let secs = totalWorkSeconds % 60;
-    
-    // Update the UI
-    timerEl.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-
-    // Final Check: Did we hit 12 minutes?
-    if (mins >= TARGET_MINUTES) { 
-        finishAssignment(); 
+        // 3. Logic for when the timer is paused (loading screens, menus)
+        if (statePill) {
+            statePill.innerText = "PAUSED";
+            statePill.style.background = "#64748b"; // Slate Gray
+        }
+        
+        // Ensure current question time stays visible but stops counting
+        if (qDisplay) qDisplay.style.opacity = "0.5";
     }
 }, 1000);
 
