@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>6.2.4 System Debugger</title>
+    
+    <script>
+        const APP_VERSION = "1.0.4"; // Increment this when you push
+        const LAST_UPDATED = "2026-02-16 16:20"; 
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <script src="skill_transformation.js"></script>
@@ -16,63 +22,91 @@
 
     <style>
         :root { --panel-bg: #f8fafc; --border: #e2e8f0; }
-        body { padding: 20px; font-family: sans-serif; }
+        body { padding: 20px; font-family: sans-serif; background-color: #f1f5f9; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .card { background: white; border: 1px solid var(--border); padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .control-group { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        label { display: block; font-weight: bold; font-size: 0.8rem; margin-bottom: 5px; color: #64748b; }
-        .log-box { background: #1a1a1a; color: #4CBB17; padding: 15px; font-family: monospace; border-radius: 8px; height: 200px; overflow-y: auto; font-size: 13px; }
-        input[type="range"] { width: 100%; }
-        .status-pill { padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-        .status-online { background: #dcfce7; color: #166534; }
+        
+        .version-tag {
+            background: #1e293b;
+            color: #38bdf8;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-family: monospace;
+            font-size: 11px;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .timer-tester {
+            background: #fff7ed;
+            border: 1px solid #ffedd5;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        
+        .log-box { background: #1a1a1a; color: #4CBB17; padding: 15px; font-family: monospace; border-radius: 8px; height: 250px; overflow-y: auto; font-size: 13px; }
+        input[type="range"] { width: 100%; accent-color: #4CBB17; }
+        button { cursor: pointer; transition: opacity 0.2s; }
+        button:hover { opacity: 0.8; }
     </style>
 </head>
 <body>
 
-    <div style="margin-bottom: 20px;">
-        <h1>Dev <span class="accent-text">Control Panel</span></h1>
-        <p>Lesson 6.2.4 | System Integration Tester</p>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+        <div>
+            <h1>Dev <span class="accent-text">Control Panel</span></h1>
+            <div class="version-tag">Build: <script>document.write(APP_VERSION)</script> | Updated: <script>document.write(LAST_UPDATED)</script></div>
+        </div>
+        <div class="card" style="padding: 10px 20px; text-align: right;">
+            <label>Session User:</label>
+            <strong id="session-user-display">test_user</strong>
+        </div>
     </div>
 
     <div class="grid">
         <div class="card">
             <div class="control-group">
-                <h3>1. Database Sync</h3>
-                <button onclick="ensureTestUser()">Check/Create 'test_user'</button>
-                <button onclick="resetSession()" style="background:#f1f5f9; color:#000;">Clear Session</button>
+                <h3>1. User Management</h3>
+                <button onclick="ensureTestUser()" style="background: #4CBB17; color: white; border: none; padding: 10px; border-radius: 5px;">Check/Create 'test_user'</button>
+                <button onclick="resetSession()" style="background:#ef4444; color:#fff; border: none; padding: 10px; border-radius: 5px;">Wipe Local Storage</button>
             </div>
 
-            <div class="control-group">
-                <h3>2. Variable Overrides (Live DB)</h3>
-                <p><small>Adjust sliders then click "Apply & Route"</small></p>
+            <div class="control-group" style="margin-top: 20px;">
+                <h3>2. Skill Score Overrides</h3>
+                <p><small>Set specific scores to force the router to pick a certain skill.</small></p>
                 
-                <label>SolveX Score: <span id="v-SolveX">0</span></label>
-                <input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')">
+                <div style="margin-bottom:10px;">
+                    <label style="display:flex; justify-content:space-between;">SolveX <span id="v-SolveX">0</span></label>
+                    <input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="display:flex; justify-content:space-between;">BoxPlot <span id="v-BoxPlot">0</span></label>
+                    <input type="range" id="s-BoxPlot" min="0" max="10" value="0" oninput="updateVal('BoxPlot')">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="display:flex; justify-content:space-between;">LinearSystem <span id="v-LinearSystem">0</span></label>
+                    <input type="range" id="s-LinearSystem" min="0" max="10" value="0" oninput="updateVal('LinearSystem')">
+                </div>
+                <button onclick="applyScoresAndRoute()" style="width:100%; margin-top:15px; background:#000; color:#fff; padding: 12px; border-radius: 8px;">Update DB & Launch Skill</button>
+            </div>
 
-                <label>BoxPlot Score: <span id="v-BoxPlot">0</span></label>
-                <input type="range" id="s-BoxPlot" min="0" max="10" value="0" oninput="updateVal('BoxPlot')">
-
-                <label>LinearSystem Score: <span id="v-LinearSystem">0</span></label>
-                <input type="range" id="s-LinearSystem" min="0" max="10" value="0" oninput="updateVal('LinearSystem')">
-
-                <label>FigureGrowth Score: <span id="v-FigureGrowth">0</span></label>
-                <input type="range" id="s-FigureGrowth" min="0" max="10" value="0" oninput="updateVal('FigureGrowth')">
-
-                <label>Transformations Score: <span id="v-C6Transformation">0</span></label>
-                <input type="range" id="s-C6Transformation" min="0" max="10" value="0" oninput="updateVal('C6Transformation')">
-
-                <button onclick="applyScoresAndRoute()" style="width:100%; margin-top:15px; background:#000; color:#fff;">Apply & Route Next Question</button>
+            <div class="timer-tester">
+                <h3>3. Timer Warp (12-Min Test)</h3>
+                <p><small>Fast-forward the clock to test the "Assignment Complete" logic.</small></p>
+                <button onclick="warpTime(715)" style="background:#f59e0b; color:white; border:none; padding:5px 10px; border-radius:4px;">Jump to 11:55</button>
+                <button onclick="warpTime(0)" style="background:#64748b; color:white; border:none; padding:5px 10px; border-radius:4px;">Reset Clock</button>
             </div>
         </div>
 
         <div class="card">
-            <h3>System Logs</h3>
-            <div id="log" class="log-box">Initialized...</div>
+            <h3>Live System Output</h3>
+            <div id="log" class="log-box">Initialized Control Panel...</div>
             
             <div id="work-area" style="margin-top:20px; border-top: 2px solid #eee; padding-top:20px;">
-                <h2 id="q-title" style="font-size: 1.2rem;">Live Output:</h2>
-                <div id="q-content"><em>Waiting for routing...</em></div>
-                <div id="feedback-box" style="display:none; margin-top:10px; padding:10px; border-radius:8px;"></div>
+                <h2 id="q-title">Wait...</h2>
+                <div id="q-content"><em>The game UI will render here.</em></div>
+                <div id="feedback-box" style="display:none; margin-top:10px; padding:15px; border-radius:8px;"></div>
             </div>
         </div>
     </div>
@@ -80,13 +114,13 @@
     <script src="assignment_hub.js"></script>
 
     <script>
-        // Use Global Window object to avoid 'let' redeclaration issues
+        // Global Overrides to satisfy skills/hub without 'let' collisions
         window.currentUser = 'test_user';
         window.targetLesson = '6.2.4';
         
         function log(msg) {
             const l = document.getElementById('log');
-            l.innerHTML += `<br>> ${msg}`;
+            l.innerHTML += `<br><span style="color:#888;">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
             l.scrollTop = l.scrollHeight;
         }
 
@@ -94,53 +128,59 @@
             document.getElementById('v-' + id).innerText = document.getElementById('s-' + id).value;
         }
 
-        function resetSession() {
-            sessionStorage.clear();
-            log("Session cleared. Reloading...");
-            location.reload();
+        function warpTime(seconds) {
+            window.totalSecondsWorked = seconds;
+            sessionStorage.setItem('total_work_time', seconds);
+            log(`Time warped to ${seconds} seconds.`);
         }
 
+        function resetSession() {
+            sessionStorage.clear();
+            log("Session wiped. Reloading...");
+            setTimeout(() => location.reload(), 500);
+        }
+
+        // Logic to ensure user exists and scores are synced
         async function ensureTestUser() {
-            log("Checking for 'test_user' in DB...");
+            log("Syncing with Supabase...");
             const { data, error } = await supabaseClient.from('assignment').select('*').eq('userName', 'test_user').maybeSingle();
             
             if (!data) {
-                log("User missing. Creating 'test_user' with default scores...");
-                const { error: insErr } = await supabaseClient.from('assignment').insert([{
-                    userName: 'test_user',
-                    SolveX: 0, BoxPlot: 0, LinearSystem: 0, FigureGrowth: 0, C6Transformation: 0
+                log("test_user not found. Auto-creating row...");
+                await supabaseClient.from('assignment').insert([{
+                    userName: 'test_user', SolveX: 0, BoxPlot: 0, LinearSystem: 0, FigureGrowth: 0, C6Transformation: 0
                 }]);
-                if (insErr) log("Error creating user: " + insErr.message);
-                else log("Success! 'test_user' ready.");
+                log("Created successfully.");
             } else {
-                log("User found. Syncing sliders to DB values...");
-                ['SolveX', 'BoxPlot', 'LinearSystem', 'FigureGrowth', 'C6Transformation'].forEach(s => {
-                    document.getElementById('s-' + s).value = data[s] || 0;
-                    updateVal(s);
+                log("test_user found. Loading DB scores into sliders.");
+                const skills = ['SolveX', 'BoxPlot', 'LinearSystem', 'FigureGrowth', 'C6Transformation'];
+                skills.forEach(s => {
+                    if(document.getElementById('s-' + s)) {
+                        document.getElementById('s-' + s).value = data[s] || 0;
+                        updateVal(s);
+                    }
                 });
             }
         }
 
         async function applyScoresAndRoute() {
-            log("Applying custom scores to DB...");
+            log("Updating DB scores...");
             const updates = {
                 SolveX: parseInt(document.getElementById('s-SolveX').value),
                 BoxPlot: parseInt(document.getElementById('s-BoxPlot').value),
-                LinearSystem: parseInt(document.getElementById('s-LinearSystem').value),
-                FigureGrowth: parseInt(document.getElementById('s-FigureGrowth').value),
-                C6Transformation: parseInt(document.getElementById('s-C6Transformation').value)
+                LinearSystem: parseInt(document.getElementById('s-LinearSystem').value)
+                // Add others here
             };
 
             const { error } = await supabaseClient.from('assignment').update(updates).eq('userName', 'test_user');
             
-            if (error) log("Update failed: " + error.message);
+            if (error) log("DB Error: " + error.message);
             else {
-                log("DB Updated. Triggering Hub logic...");
-                loadNextQuestion(); // This function should be in your assignment_hub.js
+                log("Success. Routing based on new scores...");
+                loadNextQuestion(); 
             }
         }
 
-        // Initialize user on load
         ensureTestUser();
     </script>
 </body>
