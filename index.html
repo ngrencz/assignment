@@ -1,87 +1,159 @@
-<script>
-    // Supabase Configuration
-    const SB_URL = "https://khazeoycsjdqnmwodncw.supabase.co";
-    const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoYXplb3ljc2pkcW5td29kbmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MDMwOTMsImV4cCI6MjA3ODQ3OTA5M30.h-WabaGcQZ968sO2ImetccUaRihRFmO2mUKCdPiAbEI";
-    const supabase = supabase.createClient(SB_URL, SB_KEY);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Portal | Login</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Specific login-page overrides to center the box vertically */
+        body {
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--soft-white);
+        }
+        .login-card {
+            text-align: center;
+        }
+        #msg {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            min-height: 20px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--black);
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid var(--gray-med);
+            border-radius: 10px;
+            background: white;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
 
-    async function handleLogin() {
-        const userField = document.getElementById('username');
-        const lessonField = document.getElementById('lesson-select');
-        const msg = document.getElementById('msg');
-        const loginBtn = document.getElementById('login-btn');
-        
-        const username = userField.value.trim().toLowerCase();
-        if (!username) return msg.innerText = "Please enter a username.";
+    <div class="container login-card">
+        <h1>Math <span class="accent-text">Portal</span></h1>
+        <p style="color: var(--gray-text); margin-bottom: 30px;">Please log in to start your practice session.</p>
 
-        loginBtn.disabled = true;
-        msg.innerText = "Checking for student record...";
+        <div class="input-group">
+            <label for="username">Student Username</label>
+            <input type="text" id="username" placeholder="e.g. jsmith24">
+        </div>
 
-        try {
-            // 1. Check if user exists
-            let { data, error } = await supabase
-                .from('assignment')
-                .select('userName')
-                .eq('userName', username)
-                .single();
+        <div class="input-group">
+            <label for="lesson-select">Target Lesson</label>
+            <select id="lesson-select">
+                <option value="6.2.4">Lesson 6.2.4 (Transformations & Systems)</option>
+                </select>
+        </div>
 
-            if (error && error.code !== 'PGRST116') throw error;
+        <button id="login-btn" onclick="handleLogin()" style="width: 100%;">Enter Classroom</button>
 
-            if (data) {
-                // User exists -> Proceed
-                proceedToAssignment(username, lessonField.value);
-            } else {
-                // User does not exist -> Show Warning and "Create" button
-                msg.innerHTML = `
-                    <div style="color: #ed8936; margin-bottom:10px;">
-                        Username not found. Did you type it correctly?
-                    </div>
-                    <button onclick="createNewUser('${username}', '${lessonField.value}')" 
-                            style="background: #ed8936; font-size: 14px; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">
-                        No, this is my first time (Create Account)
-                    </button>
-                    <button onclick="location.reload()" 
-                            style="background: none; color: #718096; font-size: 12px; margin-top:10px; border:none; text-decoration:underline; cursor:pointer;">
-                        Let me try typing it again
-                    </button>
-                `;
-                loginBtn.style.display = 'none';
+        <div id="msg"></div>
+    </div>
+
+    <script>
+        // --- Supabase Configuration ---
+        const SB_URL = "https://khazeoycsjdqnmwodncw.supabase.co";
+        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoYXplb3ljc2pkcW5td29kbmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MDMwOTMsImV4cCI6MjA3ODQ3OTA5M30.h-WabaGcQZ968sO2ImetccUaRihRFmO2mUKCdPiAbEI";
+        const supabase = supabase.createClient(SB_URL, SB_KEY);
+
+        async function handleLogin() {
+            const userField = document.getElementById('username');
+            const lessonField = document.getElementById('lesson-select');
+            const msg = document.getElementById('msg');
+            const loginBtn = document.getElementById('login-btn');
+            
+            const username = userField.value.trim().toLowerCase();
+            if (!username) {
+                msg.style.color = "#ef4444";
+                return msg.innerText = "Please enter your username.";
             }
 
-        } catch (err) {
-            console.error(err);
-            msg.innerText = "Connection error. Please try again.";
-            loginBtn.disabled = false;
+            loginBtn.disabled = true;
+            msg.style.color = "var(--gray-text)";
+            msg.innerText = "Checking student records...";
+
+            try {
+                // 1. Check if user exists in the 'assignment' table
+                let { data, error } = await supabase
+                    .from('assignment')
+                    .select('userName')
+                    .eq('userName', username)
+                    .single();
+
+                if (error && error.code !== 'PGRST116') throw error;
+
+                if (data) {
+                    // User exists -> Go to assignment
+                    proceedToAssignment(username, lessonField.value);
+                } else {
+                    // User does not exist -> Offer to create account
+                    msg.innerHTML = `
+                        <div style="color: #ed8936; margin-bottom:12px; font-weight:bold;">
+                            User not found. Is this your first time?
+                        </div>
+                        <button onclick="createNewUser('${username}', '${lessonField.value}')" 
+                                style="background: var(--black); color: white; width: 100%;">
+                            Yes, Create My Account
+                        </button>
+                        <p onclick="location.reload()" style="cursor:pointer; text-decoration:underline; font-size:12px; margin-top:10px;">
+                            No, let me re-type my name
+                        </p>
+                    `;
+                    loginBtn.style.display = 'none';
+                }
+
+            } catch (err) {
+                console.error(err);
+                msg.innerText = "Connection error. Check your internet.";
+                loginBtn.disabled = false;
+            }
         }
-    }
 
-    async function createNewUser(username, lesson) {
-        const msg = document.getElementById('msg');
-        msg.innerText = "Creating account...";
+        async function createNewUser(username, lesson) {
+            const msg = document.getElementById('msg');
+            msg.innerText = "Setting up your portal...";
 
-        // Initializing all skill columns to 0 for a new student
-        const { error } = await supabase
-            .from('assignment')
-            .insert([{ 
-                userName: username, 
-                C6Transformation: 0,
-                LinearSystem: 0,
-                FigureGrowth: 0,
-                SolveX: 0,
-                BoxPlot: 0
-            }]);
+            // Initialize the database row with 0 mastery for all 6.2.4 skills
+            const { error } = await supabase
+                .from('assignment')
+                .insert([{ 
+                    userName: username, 
+                    C6Transformation: 0,
+                    LinearSystem: 0,
+                    FigureGrowth: 0,
+                    SolveX: 0,
+                    BoxPlot: 0
+                }]);
 
-        if (error) {
-            msg.innerText = "Error creating account. Try a different name.";
-            console.error(error);
-        } else {
-            proceedToAssignment(username, lesson);
+            if (error) {
+                msg.innerText = "Error creating account. Try a different name.";
+            } else {
+                proceedToAssignment(username, lesson);
+            }
         }
-    }
 
-    function proceedToAssignment(username, lesson) {
-        // These are picked up by assignment_hub.js on the next page
-        sessionStorage.setItem('current_user', username);
-        sessionStorage.setItem('target_lesson', lesson);
-        window.location.href = 'assignment.html';
-    }
-</script>
+        function proceedToAssignment(username, lesson) {
+            // Store variables for the Hub to use on the next page
+            sessionStorage.setItem('current_user', username);
+            sessionStorage.setItem('target_lesson', lesson);
+            window.location.href = 'assignment.html';
+        }
+    </script>
+</body>
+</html>
