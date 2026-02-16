@@ -1,59 +1,64 @@
-// --- Configuration & Supabase Init ---
 window.totalSecondsWorked = parseInt(sessionStorage.getItem('total_work_time')) || 0;
-window.currentQSeconds = 0;
 window.isCurrentQActive = false;
-window.currentQCap = 60;
-window.currentUser = sessionStorage.getItem('current_user') || 'test_user';
-window.targetLesson = sessionStorage.getItem('target_lesson') || '6.2.4';
+window.currentQSeconds = 0;
+let canCount = false; // Starts false until 20s delay or initial load
+let resumeTimeout = null;
 
-const SB_URL = "https://khazeoycsjdqnmwodncw.supabase.co";
-const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoYXper3ljc2pkcW5td29kbmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MDMwOTMsImV4cCI6MjA3ODQ3OTA5M30.h-WabaGcQZ968sO2ImetccUaRihRFmO2mUKCdPiAbEI";
-const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+// --- Tab Visibility Logic ---
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        canCount = false;
+        clearTimeout(resumeTimeout);
+        if (typeof log === "function") log("⏸️ Tab hidden: Timer stopped.");
+    } else {
+        if (typeof log === "function") log("⏱️ Tab active: Resuming in 20s...");
+        resumeTimeout = setTimeout(() => {
+            canCount = true;
+            if (typeof log === "function") log("▶️ 20s elapsed: Timer resumed.");
+        }, 20000); 
+    }
+});
 
-// Logic Tracking
-let hasDonePrimaryLesson = false;
-let skillsCompletedThisSession = []; 
-let lastActivity = Date.now();
+// Initial trigger to start the first 20s countdown on load
+resumeTimeout = setTimeout(() => { canCount = true; }, 20000);
 
-const TARGET_MINUTES = 12;
-
-// --- Global Timer Logic ---
+// --- The Master Timer Loop ---
 setInterval(() => {
     const statePill = document.getElementById('timer-state-pill');
     const totalDisplay = document.getElementById('debug-total-time');
-    const qDisplay = document.getElementById('debug-q-time');
-    const hubTimer = document.getElementById('total-timer');
+    
+    // Check if a question is actually visible (not just "Wait...")
+    const qContent = document.getElementById('q-content');
+    const hasQuestion = qContent && qContent.innerHTML.length > 50 && !qContent.innerText.includes("Wait...");
 
-    if (window.isCurrentQActive) {
-        window.currentQSeconds++;
+    if (window.isCurrentQActive && canCount && hasQuestion) {
         window.totalSecondsWorked++;
-
+        window.currentQSeconds++;
         sessionStorage.setItem('total_work_time', window.totalSecondsWorked);
 
+        // UI Updates
+        let mins = Math.floor(window.totalSecondsWorked / 60);
+        let secs = window.totalSecondsWorked % 60;
+        if (totalDisplay) totalDisplay.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs} / 12:00`;
         if (statePill) {
             statePill.innerText = "RUNNING";
             statePill.style.background = "#22c55e";
         }
-
-        let mins = Math.floor(window.totalSecondsWorked / 60);
-        let secs = window.totalSecondsWorked % 60;
-        let formattedTime = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-
-        if (totalDisplay) totalDisplay.innerText = `${formattedTime} / 12:00`;
-        if (hubTimer) hubTimer.innerText = `${formattedTime} / 12:00`;
-        if (qDisplay) qDisplay.innerText = window.currentQSeconds + "s";
-
-        if (window.totalSecondsWorked >= 720) {
-            window.isCurrentQActive = false;
-            if (typeof log === "function") log("🎯 12-Minute Goal Reached!");
-            finishAssignment();
-        }
+        
+        if (window.totalSecondsWorked >= 720) finishAssignment();
     } else {
         if (statePill) {
-            statePill.innerText = "PAUSED";
-            statePill.style.background = "#64748b";
+            if (!hasQuestion) {
+                statePill.innerText = "NO QUESTION LOADED";
+                statePill.style.background = "#ef4444";
+            } else if (!canCount) {
+                statePill.innerText = "TAB COOLDOWN (20s)";
+                statePill.style.background = "#3b82f6";
+            } else {
+                statePill.innerText = "PAUSED";
+                statePill.style.background = "#64748b";
+            }
         }
-        if (qDisplay) qDisplay.style.opacity = "0.5";
     }
 }, 1000);
 
