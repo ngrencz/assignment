@@ -1,10 +1,11 @@
 // 1. Private Variables
     let currentBoxData = {};
-    let currentDataset = []; // The SORTED list (for math)
-    let displayDataset = []; // The SHUFFLED list (for display)
+    let currentDataset = []; // Sorted (Math)
+    let displayDataset = []; // Shuffled (Display)
     let boxErrorCount = 0;
     let boxPlotStep = 0; 
     let boxPlotSessionQuestions = [];
+    let sessionCorrectFirstTry = 0; // NEW: Tracks session performance
 
     // 2. Init Function
     window.initBoxPlotGame = async function() {
@@ -12,6 +13,7 @@
         window.currentQSeconds = 0;
         boxErrorCount = 0;
         boxPlotStep = 0;
+        sessionCorrectFirstTry = 0; // Reset session tracker
 
         try {
             const { data } = await window.supabaseClient
@@ -45,8 +47,6 @@
 
         while (!valid && attempts < 50) {
             let arr = [];
-            
-            // Random Skew Logic
             const skewFactor = (Math.random() * 2) + 0.5; 
 
             for(let i=0; i<11; i++) {
@@ -55,11 +55,10 @@
                 arr.push(val);
             }
             
-            // 1. Create the DISPLAY version (Shuffled)
-            // We clone arr first, then sort arr for the math version
+            // 1. Create Display (Shuffled)
             displayDataset = [...arr].sort(() => 0.5 - Math.random());
 
-            // 2. Create the MATH version (Sorted)
+            // 2. Create Math (Sorted)
             arr.sort((a, b) => a - b);
 
             const min = arr[0];
@@ -69,7 +68,7 @@
             const max = arr[10];
 
             if (q3 > q1 && median > min && max > median) {
-                currentDataset = arr; // Store sorted for checking answers
+                currentDataset = arr; 
                 currentBoxData = { min, q1, median, q3, max };
                 valid = true;
             }
@@ -84,7 +83,7 @@
 
         document.getElementById('q-title').innerText = `Box Plot Mastery (${boxPlotStep + 1}/3)`;
         
-        // Show the SHUFFLED list
+        // Show SHUFFLED list
         const dataString = displayDataset.join(', ');
 
         qContent.innerHTML = `
@@ -202,12 +201,19 @@
             feedback.className = "correct";
             feedback.innerText = "✅ Correct!";
 
-            let adjustment = (boxErrorCount === 0) ? 1 : 0; 
+            // 1. Update Session Tracker
+            // If they got it right with NO errors on this step, it counts as a "clean" answer
+            if (boxErrorCount === 0) {
+                sessionCorrectFirstTry++;
+            }
+
+            // 2. Update SUB-SKILL immediately (as requested)
+            // We use boxErrorCount here: if 0 errors = +1, else no change
+            let subAdjustment = (boxErrorCount === 0) ? 1 : 0; 
             const updateObj = {};
-            updateObj[current.col] = Math.min(10, (window.userMastery?.[current.col] || 0) + adjustment);
+            updateObj[current.col] = Math.min(10, (window.userMastery?.[current.col] || 0) + subAdjustment);
             
-            let currentMain = window.userMastery?.['BoxPlot'] || 0;
-            updateObj['BoxPlot'] = Math.max(0, Math.min(10, currentMain + adjustment));
+            // NOTE: We do NOT update 'BoxPlot' (aggregate) here anymore!
 
             if (window.supabaseClient && window.currentUser) {
                 await window.supabaseClient
@@ -216,19 +222,16 @@
                     .eq('userName', window.currentUser);
             }
 
+            // Update Local State for Sub-skill
             if (!window.userMastery) window.userMastery = {};
             window.userMastery[current.col] = updateObj[current.col];
-            window.userMastery['BoxPlot'] = updateObj['BoxPlot'];
 
             boxPlotStep++;
             boxErrorCount = 0;
 
+            // 3. Check for End of Session
             if (boxPlotStep >= boxPlotSessionQuestions.length) {
-                window.isCurrentQActive = false; 
-                feedback.innerText = "✅ Box Plot Set Complete!";
-                setTimeout(() => {
-                    if(typeof window.loadNextQuestion === 'function') window.loadNextQuestion();
-                }, 1500);
+                finishBoxPlotSession();
             } else {
                 setTimeout(renderBoxUI, 1000);
             }
@@ -238,3 +241,42 @@
             feedback.innerText = `❌ Not quite. Hint: ${current.hint}`;
         }
     };
+
+    // --- NEW: Handle Aggregate Scoring at End of Session ---
+    async function finishBoxPlotSession() {
+        window.isCurrentQActive = false;
+        const feedback = document.getElementById('feedback-box');
+        if(feedback) feedback.innerText = "✅ Box Plot Set Complete!";
+
+        // SCORING LOGIC:
+        // 3/3 Correct (100%) -> +1
+        // 2/3 Correct (66%)  -> No Change (Neither >75% nor <=50%)
+        // 0-1 Correct (<=33%) -> -1
+        
+        let mainAdjustment = 0;
+        if (sessionCorrectFirstTry === 3) {
+            mainAdjustment = 1;
+        } else if (sessionCorrectFirstTry <= 1) {
+            mainAdjustment = -1;
+        }
+
+        if (mainAdjustment !== 0) {
+            const currentMain = window.userMastery?.['BoxPlot'] || 0;
+            const newMain = Math.max(0, Math.min(10, currentMain + mainAdjustment));
+
+            // Update DB
+            if (window.supabaseClient && window.currentUser) {
+                await window.supabaseClient
+                    .from('assignment')
+                    .update({ 'BoxPlot': newMain })
+                    .eq('userName', window.currentUser);
+            }
+            
+            // Update Local
+            window.userMastery['BoxPlot'] = newMain;
+        }
+
+        setTimeout(() => {
+            if(typeof window.loadNextQuestion === 'function') window.loadNextQuestion();
+        }, 1500);
+    }
