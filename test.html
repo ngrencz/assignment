@@ -135,6 +135,9 @@
     else log("No data found for test_user");
 }
 
+// Call it immediately
+ensureTestUser();
+
         async function resetSession() {
             if (!confirm("Wipe all mastery data for test_user?")) return;
             log("🗑️ Wiping data...");
