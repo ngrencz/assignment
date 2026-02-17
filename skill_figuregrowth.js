@@ -147,8 +147,7 @@
             feedback.className = "correct";
             feedback.innerText = "✅ Correct!";
             
-            let earnedXP = (figureErrorCount === 0) ? 1.0 : (figureErrorCount === 1 ? 0.5 : 0.2);
-            await saveStepData(stepKey, earnedXP);
+            await saveStepData(stepKey, figureErrorCount);
 
             if (currentStep < 3) {
                 currentStep++;
