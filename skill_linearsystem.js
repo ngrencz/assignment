@@ -179,14 +179,44 @@ function initCanvas() {
 }
 
 async function finalize() {
-    const score = Math.max(1, 10 - linearErrorCount);
-    showLinearFeedback("System Decoded! Mastery + " + score, true);
+    // 1. Calculate the points earned this round
+    const pointsEarned = Math.max(1, 10 - linearErrorCount);
+    showLinearFeedback(`System Decoded! Session Score: ${pointsEarned}`, true);
     
     if (window.supabaseClient) {
-        await window.supabaseClient.from('assignment').update({ LinearSystem: score }).eq('userName', window.currentUser);
+        try {
+            // 2. Fetch current mastery level first
+            const { data, error: fetchError } = await window.supabaseClient
+                .from('assignment')
+                .select('LinearSystem')
+                .eq('userName', window.currentUser)
+                .single();
+
+            if (fetchError) throw fetchError;
+
+            // 3. Calculate new mastery (Gradual Increase)
+            // Example: Current Score + (Points / 5) to make it take a few rounds to hit 10
+            const currentScore = data.LinearSystem || 0;
+            const increment = pointsEarned / 5; 
+            const newScore = Math.min(10, currentScore + increment);
+
+            // 4. Update the database with the gradual score
+            await window.supabaseClient
+                .from('assignment')
+                .update({ LinearSystem: newScore })
+                .eq('userName', window.currentUser);
+
+            console.log(`Mastery updated: ${currentScore} -> ${newScore}`);
+            
+        } catch (err) {
+            console.error("Mastery Update Failed:", err.message);
+        }
     }
     
+    // 5. Wait a moment so they see the feedback, then move on
     setTimeout(() => {
-        if (typeof window.loadNextQuestion === 'function') window.loadNextQuestion();
+        if (typeof window.loadNextQuestion === 'function') {
+            window.loadNextQuestion();
+        }
     }, 1500);
 }
