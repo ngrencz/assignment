@@ -7,6 +7,7 @@ var moveSequence = [];
 var currentRound = 1;
 var editingIndex = -1; 
 var isAnimating = false;
+var lastTargetJSON = ""; // Prevents duplicate challenges
 
 window.initTransformationGame = async function() {
     window.isCurrentQActive = true;
@@ -34,28 +35,56 @@ function startNewRound() {
     editingIndex = -1;
     isAnimating = false;
     
-    let moveCount = currentMastery >= 8 ? 5 : (currentMastery >= 5 ? 4 : 2);
-    
-    // Start shape closer to center to prevent flying off-screen
-    let startX = Math.floor(Math.random() * 3) - 1;
-    let startY = Math.floor(Math.random() * 3) - 1;
-    currentShape = [[startX, startY], [startX, startY+1], [startX+1, startY]];
-    targetShape = JSON.parse(JSON.stringify(currentShape));
+    // Force more steps as mastery increases
+    let minSteps = currentMastery >= 8 ? 4 : (currentMastery >= 5 ? 3 : 2);
+    let maxSteps = minSteps + 2;
+    let stepCount = Math.floor(Math.random() * (maxSteps - minSteps + 1)) + minSteps;
 
-    // Generate goal within bounds
-    for (let i = 0; i < moveCount; i++) {
-        let moveType = ['translation', 'reflectX', 'reflectY', 'rotate'][Math.floor(Math.random() * 4)];
-        let m = generateMove(moveType);
-        applyMoveToPoints(targetShape, m);
+    let validChallenge = false;
+    while (!validChallenge) {
+        // Start shape in a random quadrant
+        let startX = Math.floor(Math.random() * 3) - 1; 
+        let startY = Math.floor(Math.random() * 3) - 1;
+        currentShape = [[startX, startY], [startX, startY + 1], [startX + 1, startY]];
+        targetShape = JSON.parse(JSON.stringify(currentShape));
+
+        let moveHistory = [];
+        for (let i = 0; i < stepCount; i++) {
+            let moveType = ['translation', 'reflectX', 'reflectY', 'rotate'][Math.floor(Math.random() * 4)];
+            let m = generateMove(moveType);
+            applyMoveToPoints(targetShape, m);
+            moveHistory.push(m);
+        }
+
+        // Check if this challenge is different from the last one and still on grid
+        let targetJSON = JSON.stringify(targetShape);
+        let isOnGrid = targetShape.every(p => Math.abs(p[0]) <= 5 && Math.abs(p[1]) <= 5);
+        
+        if (targetJSON !== lastTargetJSON && isOnGrid) {
+            lastTargetJSON = targetJSON;
+            validChallenge = true;
+        }
     }
 
     renderUI();
 }
 
 function generateMove(type) {
-    if (type === 'translation') return { type, dx: Math.floor(Math.random() * 3) - 1, dy: Math.floor(Math.random() * 3) - 1 };
+    if (type === 'translation') {
+        // Ensure it actually moves (dx or dy must be non-zero)
+        let dx = 0, dy = 0;
+        while (dx === 0 && dy === 0) {
+            dx = Math.floor(Math.random() * 5) - 2;
+            dy = Math.floor(Math.random() * 5) - 2;
+        }
+        return { type, dx, dy };
+    }
     if (type === 'reflectX' || type === 'reflectY') return { type };
-    if (type === 'rotate') return { type, deg: 90, dir: 'CW' }; 
+    if (type === 'rotate') {
+        let degs = [90, 180];
+        let dirs = ['CW', 'CCW'];
+        return { type, deg: degs[Math.floor(Math.random() * 2)], dir: dirs[Math.floor(Math.random() * 2)] };
+    }
     return { type: 'translation', dx: 1, dy: 1 };
 }
 
@@ -174,27 +203,22 @@ function draw(pts) {
     const ctx = canvas.getContext('2d'), size = 400, step = 40, center = size/2;
     ctx.clearRect(0,0,size,size);
 
-    // Grid
     ctx.strokeStyle="#e2e8f0"; ctx.beginPath();
     for(let i=0; i<=size; i+=step){ ctx.moveTo(i,0); ctx.lineTo(i,size); ctx.moveTo(0,i); ctx.lineTo(size,i); } ctx.stroke();
     
-    // Axes
     ctx.strokeStyle="#475569"; ctx.lineWidth=2; ctx.beginPath();
     ctx.moveTo(center,0); ctx.lineTo(center,size); ctx.moveTo(0,center); ctx.lineTo(size,center); ctx.stroke();
 
-    // Scales
     ctx.fillStyle = "#64748b"; ctx.font = "10px Arial"; ctx.textAlign = "center";
     for(let i = -5; i <= 5; i++) {
         if(i === 0) continue;
-        ctx.fillText(i, center + (i * step), center + 15); // X Axis
-        ctx.fillText(i, center - 12, center - (i * step) + 4); // Y Axis
+        ctx.fillText(i, center + (i * step), center + 15);
+        ctx.fillText(i, center - 12, center - (i * step) + 4);
     }
 
-    // Ghost (Target)
     ctx.setLineDash([5,3]); ctx.strokeStyle="rgba(0,0,0,0.2)"; ctx.fillStyle="rgba(0,0,0,0.05)";
     drawShape(ctx, targetShape, center, step);
 
-    // Active
     ctx.setLineDash([]); ctx.strokeStyle="#166534"; ctx.fillStyle="rgba(34, 197, 94, 0.6)"; 
     drawShape(ctx, pts, center, step);
 }
@@ -209,7 +233,6 @@ function drawShape(ctx, pts, center, step) {
 }
 
 function checkFinalMatch(finalPts) {
-    // Epsilon check for float precision (0.1 tolerance)
     const isCorrect = finalPts.every((p, i) => 
         Math.abs(p[0] - targetShape[i][0]) < 0.1 && 
         Math.abs(p[1] - targetShape[i][1]) < 0.1
