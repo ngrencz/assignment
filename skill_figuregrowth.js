@@ -159,10 +159,8 @@
                     // Try calling the function directly from the window
                     if (typeof window.loadNextQuestion === 'function') {
                         window.loadNextQuestion();
-                    } else if (typeof loadNextQuestion === 'function') {
-                        loadNextQuestion();
                     } else {
-                        console.error("Hub Error: loadNextQuestion is nowhere to be found.");
+                        loadNextQuestion();
                     }
                 }, 1500);
             }
