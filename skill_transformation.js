@@ -1,7 +1,6 @@
 /**
- * Transformation Geometry Game
- * Features: Adaptive difficulty, Step-by-Step execution, Smooth LERP animation,
- * Manual dilation input, and Performance-based Supabase tracking.
+ * Transformation Geometry Game - V4
+ * Fixes: Edit function, Undo logic, and Button Contrast.
  */
 
 // Global State
@@ -15,9 +14,8 @@ var isAnimating = false;
 var lastTargetJSON = "";
 var moveSequence = [];
 var sessionSkills = { translation: 0, reflection: 0, rotation: 0, dilation: 0 };
-var roundResults = []; // Stores 1 for success, 0 for failure attempts
+var roundResults = []; 
 
-// Shape Library
 const SHAPES = {
     rightTriangle: [[0,0], [0,3], [3,0]],
     isoscelesTriangle: [[0,0], [2,4], [4,0]],
@@ -53,7 +51,6 @@ function startNewRound() {
     editingIndex = -1;
     isAnimating = false;
     
-    // Sort skills to find weakest
     let skills = [
         { name: 'translation', val: window.userProgress.C6Translation },
         { name: 'reflection', val: window.userProgress.C6Reflection },
@@ -65,29 +62,22 @@ function startNewRound() {
     while (!validChallenge) {
         const shapeKeys = Object.keys(SHAPES);
         const baseCoords = SHAPES[shapeKeys[Math.floor(Math.random() * shapeKeys.length)]];
-        
         let offX = Math.floor(Math.random() * 5) - 2;
         let offY = Math.floor(Math.random() * 5) - 2;
         currentShape = baseCoords.map(p => [p[0] + offX, p[1] + offY]);
-        
         originalStartShape = JSON.parse(JSON.stringify(currentShape));
         targetShape = JSON.parse(JSON.stringify(currentShape));
 
-        // Generate 3-5 steps
-        let stepCount = Math.max(3, Math.floor(Math.random() * 3) + 3);
+        let stepCount = Math.max(3, Math.floor(Math.random() * 2) + 3);
         for (let i = 0; i < stepCount; i++) {
             let typePool = Math.random() > 0.4 ? [skills[0].name] : ['translation', 'reflection', 'rotation', 'dilation'];
             let pickedType = typePool[Math.floor(Math.random() * typePool.length)];
-            
             if (pickedType === 'reflection') pickedType = Math.random() > 0.5 ? 'reflectX' : 'reflectY';
             applyMoveToPoints(targetShape, generateMove(pickedType));
         }
 
-        // Boundary check: ensure target is within -10 to 10 and not microscopic
         let isOnGrid = targetShape.every(p => Math.abs(p[0]) <= 10 && Math.abs(p[1]) <= 10);
-        let isVisible = targetShape.every(p => Math.abs(p[0]) > 0.05 || Math.abs(p[1]) > 0.05);
-
-        if (JSON.stringify(targetShape) !== JSON.stringify(originalStartShape) && isOnGrid && isVisible) validChallenge = true;
+        if (JSON.stringify(targetShape) !== JSON.stringify(originalStartShape) && isOnGrid) validChallenge = true;
     }
     renderUI();
 }
@@ -129,9 +119,9 @@ function renderUI() {
             ${moveSequence.map((m, i) => `
                 <div style="display:flex; align-items:center; background:#334155; color:white; border-radius:4px; font-size:11px;">
                     <div onclick="${isAnimating ? '' : `editStep(${i})`}" style="padding:4px 8px; cursor:pointer;">${i+1}. ${formatMove(m)}</div>
-                    <div onclick="${isAnimating ? '' : `undoTo(${i})`}" style="padding:4px 6px; background:rgba(255,0,0,0.2); cursor:pointer; border-left:1px solid rgba(255,255,255,0.1);">✕</div>
+                    <div onclick="${isAnimating ? '' : `undoTo(${i})`}" style="padding:4px 6px; background:rgba(255,255,255,0.1); cursor:pointer; border-left:1px solid rgba(255,255,255,0.1);">✕</div>
                 </div>`).join('')}
-            ${moveSequence.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">Add a move to start...</span>' : ''}
+            ${moveSequence.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">Add a move...</span>' : ''}
         </div>
 
         <div id="control-panel" style="background:#fff; border:1px solid #e2e8f0; padding:12px; border-radius:10px; display:grid; grid-template-columns: 1fr 1fr; gap:10px; pointer-events: ${isAnimating ? 'none' : 'auto'}; opacity: ${isAnimating ? 0.7 : 1};">
@@ -147,8 +137,9 @@ function renderUI() {
             <button onclick="executeAction()" style="grid-column: span 2; height:40px; background:#22c55e; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">
                 ${editingIndex === -1 ? 'APPLY MOVE' : 'UPDATE & REPLAY'}
             </button>
-            <button onclick="checkWin()" style="grid-column: span 1; height:35px; background:#0f172a; color:white; border-radius:6px; font-size:12px;">CHECK MATCH</button>
-            <button onclick="resetToStart()" style="grid-column: span 1; height:35px; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; font-size:12px;">RESET ALL</button>
+            <button onclick="checkWin()" style="grid-column: span 1; height:35px; background:#0f172a; color:white; border-radius:6px; font-size:12px; cursor:pointer;">CHECK MATCH</button>
+            <button onclick="resetToStart()" style="grid-column: span 1; height:35px; background:#334155; color:white; border:none; border-radius:6px; font-size:12px; cursor:pointer; font-weight:bold;">RESET ALL</button>
+            ${editingIndex !== -1 ? `<button onclick="cancelEdit()" style="grid-column: span 2; height:30px; background:#94a3b8; color:white; border:none; border-radius:6px; font-size:11px; cursor:pointer;">Cancel Edit</button>` : ''}
         </div>
     `;
 
@@ -169,12 +160,12 @@ function setupCanvas() {
     const canvas = document.getElementById('gridCanvas');
     const tip = document.getElementById('coord-tip');
     if (!canvas) return;
-    canvas.addEventListener('mousemove', (e) => {
+    canvas.onmousemove = (e) => {
         const rect = canvas.getBoundingClientRect();
         const gridX = Math.round((e.clientX - rect.left - 220) / 20);
         const gridY = Math.round((220 - (e.clientY - rect.top)) / 20);
         if (Math.abs(gridX) <= 10 && Math.abs(gridY) <= 10) tip.innerText = `(${gridX}, ${gridY})`;
-    });
+    };
 }
 
 window.updateSubInputs = function() {
@@ -200,6 +191,19 @@ window.updateSubInputs = function() {
         container.innerHTML = `Scale: <input type="number" id="dil-factor" step="0.25" value="${existing?.factor || 1}" style="width:80px; height:35px; text-align:center;">`;
     } else container.innerHTML = "";
 }
+
+window.editStep = function(i) {
+    editingIndex = i;
+    const move = moveSequence[i];
+    renderUI();
+    document.getElementById('move-selector').value = move.type;
+    updateSubInputs();
+};
+
+window.cancelEdit = function() {
+    editingIndex = -1;
+    renderUI();
+};
 
 window.executeAction = async function() {
     const type = document.getElementById('move-selector').value;
@@ -254,6 +258,7 @@ async function replayAll() {
 }
 
 window.undoTo = function(i) {
+    // Remove selected step and everything after it
     moveSequence.splice(i);
     replayAll().then(() => renderUI());
 };
@@ -270,15 +275,12 @@ function draw(pts) {
     const ctx = canvas.getContext('2d'), step = 20, center = 220;
     ctx.clearRect(0,0,440,440);
 
-    // Grid
     ctx.strokeStyle="#f1f5f9"; ctx.beginPath();
     for(let i=0; i<=440; i+=step){ ctx.moveTo(i,0); ctx.lineTo(i,440); ctx.moveTo(0,i); ctx.lineTo(440,i); } ctx.stroke();
     
-    // Axes
     ctx.strokeStyle="#64748b"; ctx.lineWidth=2; ctx.beginPath();
     ctx.moveTo(center,0); ctx.lineTo(center,440); ctx.moveTo(0,center); ctx.lineTo(440,center); ctx.stroke();
 
-    // Labels
     ctx.fillStyle = "#94a3b8"; ctx.font = "9px Arial"; ctx.textAlign = "center";
     for(let i = -10; i <= 10; i++) {
         if(i === 0) continue;
@@ -314,7 +316,7 @@ window.checkWin = function() {
         roundResults.push(1);
         currentRound++;
         if (currentRound > 3) finishGame();
-        else { alert("✅ Target Reached!"); startNewRound(); }
+        else { alert("✅ Success!"); startNewRound(); }
     } else {
         transErrorCount++;
         roundResults.push(0);
@@ -329,7 +331,7 @@ window.checkWin = function() {
 
 async function finishGame() {
     window.isCurrentQActive = false; 
-    document.getElementById('q-content').innerHTML = `<div style="text-align:center; padding:40px;"><h3>Perfect!</h3><p>Saving progress...</p></div>`;
+    document.getElementById('q-content').innerHTML = `<div style="text-align:center; padding:40px;"><h3>Session Complete</h3><p>Saving progress...</p></div>`;
 
     if (window.supabaseClient && window.currentUser) {
         let updates = {};
