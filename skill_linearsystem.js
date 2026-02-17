@@ -1,4 +1,4 @@
-{
+
     let linearErrorCount = 0;
     let currentStep = 1; 
     let currentSystem = {};
@@ -155,4 +155,4 @@
         await supabaseClient.from('assignment').update({ LinearSystem: score }).eq('userName', window.currentUser);
         window.loadNextQuestion();
     }
-}
+
