@@ -4,13 +4,21 @@ let boxErrorCount = 0;
 let currentStep = 0;
 let sessionQuestions = [];
 
-function initBoxPlotGame() {
+async function initBoxPlotGame() {
     window.isCurrentQActive = true;
     window.currentQSeconds = 0;
     boxErrorCount = 0;
     currentStep = 0;
 
     // Generate fresh data
+    // Fetch existing mastery to ensure the +1/-1 has a starting point
+    const { data } = await window.supabaseClient
+        .from('assignment')
+        .select('BoxPlot, bp_median, bp_range, bp_quartiles, bp_iqr')
+        .eq('userName', window.currentUser)
+        .maybeSingle();
+    
+    window.userMastery = data || {};
     const min = Math.floor(Math.random() * 5) + 2;
     const q1 = min + (Math.floor(Math.random() * 3) + 2);
     const median = q1 + (Math.floor(Math.random() * 4) + 2);
@@ -143,21 +151,58 @@ async function checkStep() {
     if (userAns === current.a) {
         feedback.className = "correct";
         feedback.innerText = "✅ Correct!";
+
+        // --- PRACTICE BALANCE LOGIC ---
+        // 1. Determine adjustment (+1 if no errors on this step, -1 if they struggled)
+        // Since box plots are often single-try, we can be strict or lenient here.
+        let adjustment = (boxErrorCount === 0) ? 1 : 0; 
         
-        // Update Supabase for the sub-skill
+        // 2. Prepare the update object
         const updateObj = {};
-        updateObj[current.col] = 10; // Or calculate based on errors
-        await window.supabaseClient.from('assignment').update(updateObj).eq('userName', window.currentUser);
+        
+        // Fetch current values from window if the Hub pre-loaded them, 
+        // otherwise we just send the relative update.
+        // For simplicity with your current setup, we'll increment the sub-skill.
+        // NOTE: If you haven't changed these to float8, use whole numbers.
+        
+        // 3. Update the specific sub-column (e.g., bp_median)
+        // We cap it at 10.
+        updateObj[current.col] = Math.min(10, (window.userMastery?.[current.col] || 0) + adjustment);
+        
+        // 4. Update the main BoxPlot mastery
+        let currentMain = window.userMastery?.['BoxPlot'] || 0;
+        updateObj['BoxPlot'] = Math.max(0, Math.min(10, currentMain + adjustment));
+
+        // 5. Send to Supabase
+        await window.supabaseClient
+            .from('assignment')
+            .update(updateObj)
+            .eq('userName', window.currentUser);
+
+        // Update local mastery tracking
+        if (!window.userMastery) window.userMastery = {};
+        window.userMastery[current.col] = updateObj[current.col];
+        window.userMastery['BoxPlot'] = updateObj['BoxPlot'];
 
         currentStep++;
+        boxErrorCount = 0; // Reset error count for the next sub-question
+
         if (currentStep >= sessionQuestions.length) {
+            window.isCurrentQActive = false; // Stop timer
+            feedback.innerText = "✅ Box Plot Mastered!";
             setTimeout(loadNextQuestion, 1500);
         } else {
             setTimeout(renderBoxUI, 1000);
         }
     } else {
+        // Increment error count for this specific step
         boxErrorCount++;
         feedback.className = "incorrect";
         feedback.innerText = `❌ Not quite. Hint: ${current.hint}`;
+        
+        // Optional: If they miss it 3 times, you could force a -1 here
+        if (boxErrorCount >= 3) {
+            // Logic to penalize for guessing/struggling
+        }
     }
 }
