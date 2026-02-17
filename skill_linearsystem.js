@@ -1,25 +1,27 @@
 {
     let linearErrorCount = 0;
-    let currentStep = 1; // 1: Girl, 2: Boy, 3: How many solutions, 4: Graph
+    let currentStep = 1; 
     let currentSystem = {};
     let userPoints = [];
 
     const femaleNames = ["Maya", "Sarah", "Elena", "Chloe", "Amara", "Jasmine"];
     const maleNames = ["Liam", "Noah", "Caleb", "Ethan", "Leo", "Isaac"];
 
-    window.initLinearSystemsGame = async function() {
+    // Changed back to Singular to match your Hub's call
+    window.initLinearSystemGame = async function() {
         window.isCurrentQActive = true;
         window.currentQSeconds = 0;
         linearErrorCount = 0;
         currentStep = 1;
         userPoints = [];
 
+        // 1. Generate integer intersection
         const targetX = Math.floor(Math.random() * 5) - 2; 
         const targetY = Math.floor(Math.random() * 5) - 2; 
 
+        // 2. Generate different slopes (Guaranteeing exactly 1 solution)
         let m1 = Math.floor(Math.random() * 3) + 1;
         let m2;
-        // Ensure slopes are different so there is always exactly 1 solution
         do { m2 = Math.floor(Math.random() * 5) - 2; } while (m1 === m2 || m2 === 0);
 
         const b1 = targetY - (m1 * targetX);
@@ -28,8 +30,9 @@
         const girl = femaleNames[Math.floor(Math.random() * femaleNames.length)];
         const boy = maleNames[Math.floor(Math.random() * maleNames.length)];
 
-        const girlCorrect = Math.random() > 0.6;
-        const boyCorrect = !girlCorrect && Math.random() > 0.5;
+        // Randomize if they are right or wrong
+        const girlCorrect = Math.random() > 0.5;
+        const boyCorrect = !girlCorrect; // Usually make one right, one wrong
 
         currentSystem = {
             m1, b1, m2, b2,
@@ -68,14 +71,14 @@
                     <button class="secondary-btn" onclick="checkPeer(false, 'boy')">No</button>
                 </div>`;
         } else if (currentStep === 3) {
-            html += `<p><strong>Step 3:</strong> Based on the equations, how many solutions does this system have?</p>
+            html += `<p><strong>Step 3:</strong> How many solutions does this system have?</p>
                 <div style="display:grid; grid-template-columns: 1fr; gap:10px;">
                     <button class="primary-btn" onclick="checkSolutionCount(0)">None (Parallel)</button>
                     <button class="primary-btn" onclick="checkSolutionCount(1)">Exactly One (Intersecting)</button>
                     <button class="primary-btn" onclick="checkSolutionCount(Infinity)">Infinite (Coincident)</button>
                 </div>`;
         } else {
-            html += `<p><strong>Step 4:</strong> Plot 2 points for Line 1, then 2 points for Line 2.</p>
+            html += `<p><strong>Step 4:</strong> Plot the lines. 2 points for Line 1, 2 for Line 2.</p>
                 <div style="text-align:center;">
                     <canvas id="systemCanvas" width="300" height="300" style="background:white; border:2px solid #cbd5e1; cursor:crosshair;"></canvas>
                     <div id="graph-status" style="margin-top:5px; font-weight:bold; color:#3b82f6;">Line 1: Plot Point 1</div>
@@ -86,22 +89,6 @@
         if (currentStep === 4) initCanvas();
     }
 
-    window.checkSolutionCount = function(count) {
-        const feedback = document.getElementById('feedback-box');
-        feedback.style.display = "block";
-        // Since we force different slopes in init, the answer is always 1
-        if (count === 1) {
-            feedback.className = "correct";
-            feedback.innerText = "Correct! Slopes are different, so they must intersect once. Now, let's graph them.";
-            currentStep = 4;
-            setTimeout(renderLinearUI, 2000);
-        } else {
-            linearErrorCount++;
-            feedback.className = "incorrect";
-            feedback.innerText = "Check the slopes again. Are they the same or different?";
-        }
-    };
-
     window.checkPeer = function(userSaidCorrect, peerKey) {
         const peer = currentSystem[peerKey];
         const feedback = document.getElementById('feedback-box');
@@ -111,22 +98,38 @@
             feedback.className = "correct";
             feedback.innerText = `Correct! ${peer.name} was ${peer.isCorrect ? 'right' : 'wrong'}.`;
             currentStep++;
-            setTimeout(renderLinearUI, 1500);
+            setTimeout(renderLinearUI, 1200);
         } else {
             linearErrorCount++;
             feedback.className = "incorrect";
-            feedback.innerText = "Incorrect review. Test the (x, y) in both equations!";
+            feedback.innerText = "Incorrect review. Check the point in BOTH equations!";
+        }
+    };
+
+    window.checkSolutionCount = function(count) {
+        const feedback = document.getElementById('feedback-box');
+        feedback.style.display = "block";
+        if (count === 1) {
+            feedback.className = "correct";
+            feedback.innerText = "Correct! Different slopes = One solution. Now graph it!";
+            currentStep = 4;
+            setTimeout(renderLinearUI, 1200);
+        } else {
+            linearErrorCount++;
+            feedback.className = "incorrect";
+            feedback.innerText = "Check the slopes! Are they identical or different?";
         }
     };
 
     function initCanvas() {
         const canvas = document.getElementById('systemCanvas');
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
-        const step = 30; // 1 unit = 30px
+        const step = 30;
 
         function drawGrid() {
             ctx.clearRect(0,0,300,300);
-            ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth = 1;
+            ctx.strokeStyle = "#e2e8f0";
             for(let i=0; i<=300; i+=step) {
                 ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,300); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(300,i); ctx.stroke();
@@ -145,9 +148,7 @@
             
             userPoints.push({x: gridX, y: gridY});
             ctx.fillStyle = userPoints.length <= 2 ? "#3b82f6" : "#ef4444";
-            ctx.beginPath();
-            ctx.arc(150 + gridX*step, 150 - gridY*step, 5, 0, Math.PI*2);
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(150 + gridX*step, 150 - gridY*step, 5, 0, Math.PI*2); ctx.fill();
 
             if (userPoints.length === 2) validateLine(1);
             if (userPoints.length === 4) validateLine(2);
@@ -172,19 +173,20 @@
                 if (num === 2) finalize();
             } else {
                 linearErrorCount++;
-                alert("Incorrect line. Try again.");
+                alert("Incorrect line. Try again!");
                 userPoints = num === 1 ? [] : [userPoints[0], userPoints[1]];
                 drawGrid();
-                if (num === 2) { /* redraw line 1 */ }
+                // If it was line 2 that failed, redraw line 1 so they don't lose progress
+                if (num === 2) { /* Add redraw logic here if needed */ }
             }
         }
     }
-    
+
     function updateStatus() {
         const el = document.getElementById('graph-status');
         if (!el) return;
-        const msgs = ["Line 1: Point 1", "Line 1: Point 2", "Line 2: Point 1", "Line 2: Point 2"];
-        el.innerText = msgs[userPoints.length] || "Complete!";
+        const msgs = ["Line 1: Plot Point 1", "Line 1: Plot Point 2", "Line 2: Plot Point 1", "Line 2: Plot Point 2"];
+        el.innerText = msgs[userPoints.length] || "Success!";
     }
 
     async function finalize() {
