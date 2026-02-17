@@ -7,7 +7,7 @@ var moveSequence = [];
 var targetPath = [];   
 var currentRound = 1;
 var editingIndex = -1; 
-var isAnimating = false; // Prevents input during playback
+var isAnimating = false;
 
 const SKILLS = ['C6Translation', 'C6ReflectionX', 'C6ReflectionY', 'C6ReflectionXY', 'C6Rotation', 'C6Dilation'];
 
@@ -86,38 +86,46 @@ function renderUI() {
     
     let html = `
         <div style="display: flex; justify-content: center; margin-bottom: 10px; position:relative;">
-            <canvas id="gridCanvas" width="300" height="300" style="background: white; border-radius: 8px; border: 1px solid #cbd5e1;"></canvas>
-            <div id="playback-label" style="display:none; position:absolute; top:10px; left:10px; background:#3b82f6; color:white; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:bold;">PLAYBACK: STEP 1</div>
+            <canvas id="gridCanvas" width="300" height="300" style="background: white; border-radius: 8px; border: 2px solid #334155;"></canvas>
+            <div id="playback-label" style="display:none; position:absolute; top:10px; left:10px; background:#3b82f6; color:white; padding:4px 12px; border-radius:20px; font-size:14px; font-weight:bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">PLAYBACK ACTIVE</div>
         </div>
         
-        <div id="user-sequence" style="min-height:50px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:10px; margin-bottom:10px; display:flex; flex-wrap:wrap; gap:8px;">
-            ${moveSequence.length === 0 ? '<span style="color:#94a3b8; font-size:0.85rem;">Build your sequence...</span>' : 
+        <div id="user-sequence" style="min-height:60px; background:#f8fafc; border:2px dashed #cbd5e1; border-radius:12px; padding:12px; margin-bottom:15px; display:flex; flex-wrap:wrap; gap:10px;">
+            ${moveSequence.length === 0 ? '<span style="color:#94a3b8; font-weight:500;">Build your sequence steps here...</span>' : 
                 moveSequence.map((m, i) => `
-                <div onclick="${isAnimating ? '' : `editStep(${i})`}" style="cursor:pointer; background:${editingIndex === i ? '#3b82f6' : '#14532d'}; color:white; padding:6px 10px; border-radius:6px; font-size:12px; border: ${editingIndex === i ? '2px solid #1e3a8a' : 'none'};">
+                <div onclick="${isAnimating ? '' : `editStep(${i})`}" style="cursor:pointer; background:${editingIndex === i ? '#3b82f6' : '#1e293b'}; color:white; padding:8px 14px; border-radius:8px; font-size:14px; font-weight:bold; transition: 0.2s; border: ${editingIndex === i ? '3px solid #bfdbfe' : 'none'};">
                     ${i+1}. ${formatMove(m)}
                 </div>`).join('')}
         </div>
 
-        <div id="control-panel" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; background:#f1f5f9; padding:12px; border-radius:8px; border:1px solid #e2e8f0; pointer-events: ${isAnimating ? 'none' : 'auto'}; opacity: ${isAnimating ? 0.5 : 1};">
-            <select id="move-selector" class="math-input" onchange="updateSubInputs()" style="grid-column: span 2;">
-                <option value="translation">Translation (x,y)</option>
+        <div id="control-panel" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; background:#f1f5f9; padding:20px; border-radius:16px; border: 1px solid #e2e8f0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); pointer-events: ${isAnimating ? 'none' : 'auto'}; opacity: ${isAnimating ? 0.5 : 1};">
+            
+            <label style="grid-column: span 2; font-weight:bold; color:#475569; font-size:0.9rem; margin-bottom:-8px;">Transformation Type</label>
+            <select id="move-selector" class="math-input" onchange="updateSubInputs()" style="grid-column: span 2; height:50px; font-size:1.1rem; padding:0 10px; border-radius:8px; border:2px solid #cbd5e1;">
+                <option value="translation">Translation (Slide)</option>
                 <option value="reflectX">Reflect over X-Axis</option>
                 <option value="reflectY">Reflect over Y-Axis</option>
                 <option value="rotate">Rotate 90° CW</option>
-                <option value="dilate">Dilate (x2)</option>
+                <option value="dilate">Dilate (x2 Scale)</option>
             </select>
-            <div id="sub-inputs" style="display:flex; gap:4px; align-items:center; justify-content:center;"></div>
-            <div style="display:flex; gap:5px; grid-column: span 2;">
-                <button class="primary-btn" onclick="saveMove()" style="flex:2;">${editingIndex === -1 ? 'Add Instruction' : 'Update Step'}</button>
-                ${editingIndex !== -1 ? `<button class="secondary-btn" onclick="cancelEdit()" style="flex:1;">Cancel</button>` : ''}
+
+            <div id="sub-inputs" style="grid-column: span 2; display:flex; gap:15px; align-items:center; justify-content:center; padding:10px 0;">
+                </div>
+
+            <div style="display:flex; gap:10px; grid-column: span 2;">
+                <button class="primary-btn" onclick="saveMove()" style="flex:2; height:50px; font-size:1rem; border-radius:10px;">
+                    ${editingIndex === -1 ? 'Add Instruction' : 'Update Step ' + (editingIndex + 1)}
+                </button>
+                ${editingIndex !== -1 ? `<button class="secondary-btn" onclick="cancelEdit()" style="flex:1; background:#ef4444; color:white; border-radius:10px;">Cancel</button>` : ''}
             </div>
-            <button class="primary-btn" onclick="startPlayback()" style="grid-column: span 2; background:#000; color:white; padding:12px; margin-top:5px; border-radius:8px;">RUN SEQUENCE</button>
+
+            <button class="primary-btn" onclick="startPlayback()" style="grid-column: span 2; background:#0f172a; color:white; padding:15px; margin-top:10px; border-radius:12px; font-weight:800; font-size:1.1rem; letter-spacing:1px;">RUN SEQUENCE</button>
         </div>
     `;
 
     qContent.innerHTML = html;
     updateSubInputs(); 
-    draw(currentShape); // Initial draw
+    draw(currentShape); 
 }
 
 function formatMove(m) {
@@ -133,10 +141,27 @@ window.updateSubInputs = function() {
     const val = document.getElementById('move-selector')?.value;
     const container = document.getElementById('sub-inputs');
     if (!container) return;
+    
+    // Check if we are editing an existing translation to prepopulate values
+    let currentDX = 0;
+    let currentDY = 0;
+    if (editingIndex !== -1 && moveSequence[editingIndex].type === 'translation') {
+        currentDX = moveSequence[editingIndex].dx;
+        currentDY = moveSequence[editingIndex].dy;
+    }
+
     if (val === 'translation') {
-        container.innerHTML = `<input type="number" id="dx" value="0" style="width:40px" class="math-input"> <input type="number" id="dy" value="0" style="width:40px" class="math-input">`;
+        container.innerHTML = `
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-weight:bold; color:#64748b;">ΔX:</span>
+                <input type="number" id="dx" value="${currentDX}" style="width:70px; height:50px; font-size:1.5rem; text-align:center; border-radius:8px; border:2px solid #3b82f6; font-weight:bold;">
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-weight:bold; color:#64748b;">ΔY:</span>
+                <input type="number" id="dy" value="${currentDY}" style="width:70px; height:50px; font-size:1.5rem; text-align:center; border-radius:8px; border:2px solid #3b82f6; font-weight:bold;">
+            </div>`;
     } else {
-        container.innerHTML = `<span style="color:#64748b; font-size:0.8rem;">Ready</span>`;
+        container.innerHTML = `<span style="color:#94a3b8; font-style:italic;">No extra parameters needed for this move.</span>`;
     }
 }
 
@@ -152,13 +177,17 @@ window.saveMove = function() {
     renderUI();
 };
 
-window.editStep = function(index) { editingIndex = index; renderUI(); };
+window.editStep = function(index) { 
+    editingIndex = index; 
+    renderUI(); 
+};
+
 window.cancelEdit = function() { editingIndex = -1; renderUI(); };
 
 async function startPlayback() {
     if (moveSequence.length === 0 || isAnimating) return;
     isAnimating = true;
-    renderUI(); // Lock UI
+    renderUI(); 
 
     const label = document.getElementById('playback-label');
     label.style.display = 'block';
@@ -167,13 +196,13 @@ async function startPlayback() {
     draw(tempPoints);
 
     for (let i = 0; i < moveSequence.length; i++) {
-        label.innerText = `PLAYBACK: STEP ${i + 1}`;
-        await new Promise(r => setTimeout(r, 600)); // Delay between steps
+        label.innerText = `STEP ${i + 1}: ${formatMove(moveSequence[i])}`;
+        await new Promise(r => setTimeout(r, 700)); 
         applyMoveToPoints(tempPoints, moveSequence[i]);
         draw(tempPoints);
     }
 
-    await new Promise(r => setTimeout(r, 400));
+    await new Promise(r => setTimeout(r, 500));
     label.style.display = 'none';
     isAnimating = false;
     checkFinalMatch(tempPoints);
@@ -186,18 +215,19 @@ function draw(ptsToDraw) {
     const size = 300, step = 30;
     ctx.clearRect(0,0,size,size);
 
-    // Grid & Axes
-    ctx.strokeStyle="#f1f5f9"; ctx.beginPath();
+    ctx.strokeStyle="#f1f5f9"; ctx.lineWidth=1;
+    ctx.beginPath();
     for(let i=0; i<=size; i+=step){ ctx.moveTo(i,0); ctx.lineTo(i,size); ctx.moveTo(0,i); ctx.lineTo(size,i); } ctx.stroke();
+    
     ctx.strokeStyle="#94a3b8"; ctx.lineWidth=2; ctx.beginPath();
     ctx.moveTo(size/2, 0); ctx.lineTo(size/2, size); ctx.moveTo(0, size/2); ctx.lineTo(size, size/2); ctx.stroke();
 
     // Ghost Target
-    ctx.lineWidth=2; ctx.setLineDash([4,2]); ctx.strokeStyle="#000"; ctx.fillStyle="rgba(0,0,0,0.05)";
+    ctx.lineWidth=2; ctx.setLineDash([5,3]); ctx.strokeStyle="rgba(0,0,0,0.3)"; ctx.fillStyle="rgba(0,0,0,0.05)";
     drawShape(ctx, targetShape, size/2, step);
 
-    // Live Result
-    ctx.setLineDash([]); ctx.strokeStyle="#14532d"; ctx.fillStyle="rgba(76, 187, 23, 0.6)"; 
+    // Live Shape
+    ctx.setLineDash([]); ctx.strokeStyle="#14532d"; ctx.fillStyle="rgba(76, 187, 23, 0.7)"; 
     drawShape(ctx, ptsToDraw, size/2, step);
 }
 
@@ -218,10 +248,10 @@ function checkFinalMatch(finalPts) {
     if (isCorrect) {
         currentRound++;
         if (currentRound > 3) finishGame();
-        else { alert("Confirmed! Next puzzle."); startNewRound(); }
+        else { alert("✅ Perfect sequence! Starting next round..."); startNewRound(); }
     } else {
         transErrorCount++;
-        alert("Mismatch. Adjust your instructions and run it again.");
+        alert("❌ Shape Mismatch! Look at where it landed compared to the ghost shape and adjust your steps.");
         renderUI();
     }
 }
