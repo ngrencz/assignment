@@ -1,8 +1,9 @@
 /**
- * Transformation Geometry Game - V10 (Revert to Switch + Fixes)
- * - Inputs: Switch between step="1" and step="0.25" based on shape state.
- * - Scoring: Updates Supabase immediately after each question.
- * - Logic: Strict mistake counting and aggregate efficiency.
+ * Transformation Geometry Game - V11 (Strict Scoring Fix)
+ * - INPUTS: Default step=1, switches to 0.25 ONLY if decimals exist.
+ * - SCORING: Strict comparison of User Moves vs Optimal Moves.
+ * - SPLIT LOGIC: Only allows splitting 1 diagonal translation into exactly 2 orthogonal ones.
+ * - SUPABASE: Updates immediately after every problem.
  */
 
 // Global State
@@ -241,7 +242,7 @@ function setupCanvas() {
     };
 }
 
-// RESTORED: Logic that switches step based on if decimals are present
+// Logic: Check if ANY coordinate is non-integer.
 window.updateSubInputs = function() {
     const val = document.getElementById('move-selector').value;
     const container = document.getElementById('sub-inputs');
@@ -416,7 +417,7 @@ function drawShape(ctx, pts, center, step, fill) {
     });
 }
 
-// Win Check with IMMEDIATE Supabase update
+// STRICT SCORING CHECK
 window.checkWin = async function() {
     const sorter = (a, b) => (a[0] - b[0]) || (a[1] - b[1]);
     let sortedCurrent = [...currentShape].sort(sorter);
@@ -428,22 +429,32 @@ window.checkWin = async function() {
     );
 
     if (isCorrect) {
-        // --- Scoring Logic ---
-        
-        // 1. Calculate Actual Moves (Combining split X/Y translations)
+        // --- Calculate "Efficient" Moves ---
         let adjustedUserMoves = 0;
-        for (let i = 0; i < moveSequence.length; i++) {
-            adjustedUserMoves++;
+        let i = 0;
+        while (i < moveSequence.length) {
+            let m1 = moveSequence[i];
+            
+            // Check for potential split (T(x,0) + T(0,y) or vice versa)
             if (i < moveSequence.length - 1) {
-                let m1 = moveSequence[i], m2 = moveSequence[i+1];
+                let m2 = moveSequence[i+1];
                 if (m1.type === 'translation' && m2.type === 'translation') {
-                    // Check if one moves X only and other moves Y only
-                    if ((m1.dx !== 0 && m1.dy === 0 && m2.dx === 0 && m2.dy !== 0) ||
-                        (m1.dx === 0 && m1.dy !== 0 && m2.dx !== 0 && m2.dy === 0)) {
-                        i++; // Skip next move (count as 1 combined)
+                    // Allowed split: Horizontal THEN Vertical (or vice versa)
+                    // Must be strictly orthogonal (one 0 component each)
+                    if ((Math.abs(m1.dx) > 0 && m1.dy === 0 && m2.dx === 0 && Math.abs(m2.dy) > 0) ||
+                        (m1.dx === 0 && Math.abs(m1.dy) > 0 && Math.abs(m2.dx) > 0 && m2.dy === 0)) {
+                        
+                        // Combine these two into one "logical" move
+                        adjustedUserMoves++;
+                        i += 2; // skip both
+                        continue;
                     }
                 }
             }
+            
+            // If not a valid split, count as 1 move
+            adjustedUserMoves++;
+            i++;
         }
 
         const optimalMoves = generatedMoves.length;
