@@ -107,11 +107,33 @@ async function checkFigureAns() {
     }
 }
 
-async function saveStepData(column, score) {
+async function saveStepData(column, errorCount) {
+    // 1. Calculate how much 'XP' they earned this step
+    // Perfect = 1.0 points, 1 error = 0.5 points, 2+ errors = 0.2 points
+    let earnedXP = 0;
+    if (errorCount === 0) earnedXP = 1.0;
+    else if (errorCount === 1) earnedXP = 0.5;
+    else earnedXP = 0.2;
+
+    // 2. Get their current mastery (assuming Hub tracks this in a global object)
+    // If not in window, we default to 0
+    let currentMastery = window.userMastery?.[column] || 0;
+    let newMastery = Math.min(10, currentMastery + earnedXP);
+
+    // 3. Update the Hub's local record so the next step knows the new floor
+    if (!window.userMastery) window.userMastery = {};
+    window.userMastery[column] = newMastery;
+
+    // 4. Update Supabase
     let updates = {};
-    updates[column] = score;
-    // We also update the main FigureGrowth column as an overall progress indicator
-    updates['FigureGrowth'] = score; 
+    updates[column] = newMastery;
+    // The main FigureGrowth column becomes the average of the sub-skills
+    const avg = (
+        (window.userMastery['FigureRule'] || 0) + 
+        (window.userMastery['FigureDraw'] || 0) + 
+        (window.userMastery['FigureX'] || 0)
+    ) / 3;
+    updates['FigureGrowth'] = parseFloat(avg.toFixed(1)); 
 
     const { error } = await window.supabaseClient
         .from('assignment')
@@ -119,4 +141,5 @@ async function saveStepData(column, score) {
         .eq('userName', window.currentUser);
 
     if (error) console.error("Update failed:", error.message);
+    log(`Mastery Update: ${column} is now ${newMastery}/10 (+${earnedXP})`);
 }
