@@ -1,4 +1,4 @@
-{
+
     let linearErrorCount = 0;
     let currentStep = 1; 
     let currentSystem = {};
@@ -244,4 +244,3 @@
             window.loadNextQuestion();
         }
     }
-}
