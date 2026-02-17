@@ -113,59 +113,68 @@
     };
     
    window.checkFigureAns = async function() {
-        let isCorrect = false;
-        let stepKey = "";
-        const feedback = document.getElementById('feedback-box');
-        if (feedback) feedback.style.display = "block";
+    let isCorrect = false;
+    let stepKey = "";
+    const feedback = document.getElementById('feedback-box');
+    if (feedback) feedback.style.display = "block";
 
-        if (currentStep === 1) {
-            stepKey = "FigureRule";
-            const uM = parseInt(document.getElementById('input-m').value);
-            const uB = parseInt(document.getElementById('input-b').value);
-            isCorrect = (uM === currentPattern.m && uB === currentPattern.b);
-        } else if (currentStep === 2) {
-            stepKey = "FigureDraw";
-            const activeTiles = document.querySelectorAll('.drawing-tile.active').length;
-            isCorrect = (activeTiles === currentPattern.fig3Count);
-        } else {
-            stepKey = "FigureX";
-            const uAns = parseInt(document.getElementById('input-ans').value);
-            isCorrect = (uAns === (currentPattern.m * currentPattern.targetX) + currentPattern.b);
+    // --- Validation Logic ---
+    if (currentStep === 1) {
+        stepKey = "FigureRule";
+        const uM = parseInt(document.getElementById('input-m').value);
+        const uB = parseInt(document.getElementById('input-b').value);
+        isCorrect = (uM === currentPattern.m && uB === currentPattern.b);
+    } else if (currentStep === 2) {
+        stepKey = "FigureDraw";
+        const activeTiles = document.querySelectorAll('.drawing-tile.active').length;
+        isCorrect = (activeTiles === currentPattern.fig3Count);
+    } else {
+        stepKey = "FigureX";
+        const uAns = parseInt(document.getElementById('input-ans').value);
+        isCorrect = (uAns === (currentPattern.m * currentPattern.targetX) + currentPattern.b);
+    }
+
+    // --- Handling Correct Answer ---
+    if (isCorrect) {
+        feedback.className = "correct";
+        feedback.innerText = "✅ Correct!";
+        
+        try {
+            await saveStepData(stepKey, figureErrorCount);
+        } catch (e) {
+            console.error("Database save failed, but continuing game:", e);
         }
 
-        if (isCorrect) {
-            feedback.className = "correct";
-            feedback.innerText = "✅ Correct!";
+        if (currentStep < 3) {
+            currentStep++;
+            figureErrorCount = 0;
+            setTimeout(renderFigureUI, 1000);
+        } else {
+            // THIS IS THE FINISH LINE (Step 3 Complete)
+            window.isCurrentQActive = false;
+            feedback.innerText = "Pattern Mastered! Redirecting...";
             
-            try {
-                await saveStepData(stepKey, figureErrorCount);
-            } catch (e) {
-                console.error("Database save failed, but continuing game:", e);
-            }
+            console.log("--- FINISH LINE REACHED ---");
+            console.log("Checking Hub Status...");
 
-            if (currentStep < 3) {
-                currentStep++;
-                figureErrorCount = 0;
-                setTimeout(renderFigureUI, 1000);
-            } else {
-                window.isCurrentQActive = false;
-                feedback.innerText = "Pattern Mastered! Loading next...";
-                
-                console.log("Attempting to call window.loadNextQuestion...");
-                setTimeout(() => {
-                    if (typeof window.loadNextQuestion === 'function') {
-                        window.loadNextQuestion();
-                    } else {
-                        console.error("Critical: window.loadNextQuestion is not a function!");
-                    }
-                }, 1500);
-            }
-        } else {
-            figureErrorCount++;
-            feedback.className = "incorrect";
-            feedback.innerText = "Not quite! Check your growth logic.";
+            setTimeout(() => {
+                if (typeof window.loadNextQuestion === 'function') {
+                    console.log("Calling window.loadNextQuestion()...");
+                    window.loadNextQuestion();
+                } else {
+                    console.error("Critical: window.loadNextQuestion is not a function!");
+                    feedback.innerText = "Error: Hub not found. Please refresh.";
+                }
+            }, 1500);
         }
-    };
+    } 
+    // --- Handling Incorrect Answer (The bottom else you asked about) ---
+    else {
+        figureErrorCount++;
+        feedback.className = "incorrect";
+        feedback.innerText = "Not quite! Check your growth logic.";
+    }
+};
 
     async function saveStepData(column, errorCount) {
         let adjustment = (errorCount === 0) ? 1 : (errorCount >= 3 ? -1 : 0);
