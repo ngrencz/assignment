@@ -36,11 +36,19 @@
     };
 
    function generateTileHTML(count, m, b, figNum) {
-        // Keeps the constant 'b' as orange and growth as blue
+        // Check if the user has reached "Expert" status (Mastery 8+)
+        // If they are 8 or higher, we use a single color for everything.
+        const isExpert = (window.userMastery?.['FigureGrowth'] || 0) >= 8;
+        
         let html = `<div style="display: grid; grid-template-columns: repeat(5, 12px); gap: 1px; width: 65px; line-height: 0; margin: 0 auto;">`;
         
         for (let i = 0; i < count; i++) {
-            const color = (i < b) ? '#f97316' : '#3b82f6';
+            // Default color is blue. Only use orange if they are below Rank 8.
+            let color = '#3b82f6'; 
+            if (!isExpert && i < b) {
+                color = '#f97316'; // Training wheels: Orange for the constant 'b'
+            }
+            
             html += `<div style="width:12px; height:12px; background:${color}; border:0.5px solid white;"></div>`;
         }
         html += `</div>`;
