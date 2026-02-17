@@ -1,11 +1,12 @@
 /**
- * Transformation Geometry Game - V7
+ * Transformation Geometry Game - V7.1 (UI Fixes)
  * Features:
- * - Visual Matching (Shape-based, not Vertex-order based)
- * - Split Animation (X then Y for translations)
+ * - Visual Matching (Shape-based)
+ * - Split Animation (X then Y)
  * - Specific C6 Database Columns
- * - Adaptive Difficulty (Targets weakest skills)
+ * - Adaptive Difficulty
  * - Min 3 Moves
+ * - FIXED: Wider inputs & Decimal support restored
  */
 
 // Global State
@@ -262,14 +263,15 @@ window.updateSubInputs = function() {
     let existing = (editingIndex !== -1) ? moveSequence[editingIndex] : null;
 
     if (val === 'translation') {
+        // FIXED: Increased width to 80px and restored step="0.25" for decimals
         container.innerHTML = `
-            <div style="display:flex; align-items:center;">
+            <div style="display:flex; align-items:center; margin-right: 10px;">
                 <span style="font-weight:bold; margin-right:5px;">X:</span> 
-                <input type="number" id="dx" step="1" value="${existing?.dx || 0}" style="width:60px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px;">
+                <input type="number" id="dx" step="0.25" value="${existing?.dx || 0}" style="width:80px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px; font-size:14px;">
             </div>
             <div style="display:flex; align-items:center;">
                 <span style="font-weight:bold; margin-right:5px;">Y:</span> 
-                <input type="number" id="dy" step="1" value="${existing?.dy || 0}" style="width:60px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px;">
+                <input type="number" id="dy" step="0.25" value="${existing?.dy || 0}" style="width:80px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px; font-size:14px;">
             </div>`;
     } else if (val === 'rotate') {
         container.innerHTML = `
@@ -282,6 +284,7 @@ window.updateSubInputs = function() {
                 <option value="CCW" ${existing?.dir == 'CCW' ? 'selected' : ''}>CCW</option>
             </select>`;
     } else if (val === 'dilation') {
+        // FIXED: Increased width and step
         container.innerHTML = `
             <span style="font-weight:bold; margin-right:5px;">Scale:</span> 
             <input type="number" id="dil-factor" step="0.25" value="${existing?.factor || 1}" style="width:80px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px;">`;
@@ -329,19 +332,18 @@ window.executeAction = async function() {
     renderUI();
 };
 
-// Modified animation to split X and Y movement for translations
 async function animateMove(pts, m) {
     isAnimating = true;
     let startPoints = JSON.parse(JSON.stringify(pts));
     
-    // Check for split translation (dx AND dy are non-zero)
+    // Split X and Y movement for translations if both exist
     if (m.type === 'translation' && m.dx !== 0 && m.dy !== 0) {
         
         // Leg 1: Move X only
         let midPoints = startPoints.map(p => [p[0] + m.dx, p[1]]);
         await runLerp(startPoints, midPoints);
         
-        // Brief pause between axis change
+        // Brief pause
         await new Promise(r => setTimeout(r, 100));
 
         // Leg 2: Move Y only
@@ -352,7 +354,7 @@ async function animateMove(pts, m) {
         applyMoveToPoints(pts, m);
 
     } else {
-        // Standard single animation for everything else
+        // Standard single animation
         applyMoveToPoints(pts, m);
         let endPoints = JSON.parse(JSON.stringify(pts));
         await runLerp(startPoints, endPoints);
@@ -371,7 +373,7 @@ async function runLerp(fromPts, toPts) {
             p[1] + (toPts[i][1] - p[1]) * t
         ]);
         draw(interp);
-        await new Promise(r => setTimeout(r, 20)); // approx 300ms total
+        await new Promise(r => setTimeout(r, 20)); 
     }
 }
 
@@ -444,7 +446,7 @@ function drawShape(ctx, pts, center, step, fill) {
     });
 }
 
-// UPDATED: Visual Win Check (ignores vertex order)
+// Visual Win Check (ignores vertex order)
 window.checkWin = function() {
     // Sort logic: X ascending, then Y ascending
     const sorter = (a, b) => (a[0] - b[0]) || (a[1] - b[1]);
