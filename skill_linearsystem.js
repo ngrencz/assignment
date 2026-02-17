@@ -134,7 +134,6 @@ function initCanvas() {
         ctx.beginPath(); ctx.moveTo(size/2, 0); ctx.lineTo(size/2, size); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, size/2); ctx.lineTo(size, size/2); ctx.stroke();
         
-        // REDRAW DOTS
         userPoints.forEach((p, idx) => {
             ctx.fillStyle = idx < 2 ? "#3b82f6" : "#ef4444";
             ctx.beginPath(); ctx.arc(size/2 + p.x*step, size/2 - p.y*step, 5, 0, Math.PI * 2); ctx.fill();
@@ -174,18 +173,14 @@ function initCanvas() {
             if (validate(1)) {
                 if(status) status.innerText = "Line 1 Saved. Line 2: Point 1";
             } else {
-                alert("Incorrect. These points don't satisfy Eq 1."); 
-                userPoints = []; drawGrid();
-                if(status) status.innerText = "Line 1: Plot Point 1";
+                alert("Incorrect. Point not on Eq 1."); userPoints = []; drawGrid();
             }
         } else if (userPoints.length === 4) {
             if (validate(2)) {
-                if(status) status.innerText = "Correct! Progressing...";
-                setTimeout(finishGame, 600);
+                if(status) status.innerText = "Correct! Set Complete.";
+                finishGame(); 
             } else {
-                alert("Incorrect. These points don't satisfy Eq 2."); 
-                userPoints = [userPoints[0], userPoints[1]]; drawGrid();
-                if(status) status.innerText = "Line 2: Plot Point 1";
+                alert("Incorrect. Point not on Eq 2."); userPoints = [userPoints[0], userPoints[1]]; drawGrid();
             }
         } else {
             if(status) status.innerText = userPoints.length === 1 ? "Line 1: Point 2" : "Line 2: Point 2";
@@ -204,34 +199,38 @@ function initCanvas() {
 }
 
 async function finishGame() {
-    // 1. Log completion to Supabase FIRST and wait for it
+    window.isCurrentQActive = false; // Stop the timer like in SolveX
+
     if (window.supabaseClient && window.currentUser) {
         try {
+            // Get current score
             const { data } = await window.supabaseClient
                 .from('assignment')
                 .select('LinearSystem')
                 .eq('userName', window.currentUser)
-                .single();
+                .maybeSingle();
 
-            const nextScore = (data?.LinearSystem || 0) + 1;
+            let currentScore = data ? (data.LinearSystem || 0) : 0;
+            let adjustment = (linearErrorCount === 0) ? 1 : 0;
+            let newScore = Math.max(0, Math.min(10, currentScore + adjustment));
 
+            // Perform Update
             await window.supabaseClient
                 .from('assignment')
-                .update({ LinearSystem: nextScore })
+                .update({ LinearSystem: newScore })
                 .eq('userName', window.currentUser);
             
-            console.log("Database update successful.");
         } catch(e) { 
-            console.error("Database sync failed, moving on anyway.", e); 
+            console.error("Database sync failed:", e); 
         }
     }
     
-    // 2. Clear state and trigger the loadNextQuestion via the window object
-    console.log("Triggering next module via Hub...");
-    if (typeof window.loadNextQuestion === 'function') {
-        window.loadNextQuestion();
-    } else {
-        // Hub fallback
-        location.reload();
-    }
+    // Exact delay and call style from the working SolveX module
+    setTimeout(() => { 
+        if (typeof loadNextQuestion === 'function') {
+            loadNextQuestion(); 
+        } else {
+            location.reload();
+        }
+    }, 1500);
 }
