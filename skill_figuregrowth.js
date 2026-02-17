@@ -150,23 +150,22 @@
             figureErrorCount = 0;
             setTimeout(renderFigureUI, 1000);
         } else {
-            // THIS IS THE FINISH LINE (Step 3 Complete)
-            window.isCurrentQActive = false;
-            feedback.innerText = "Pattern Mastered! Redirecting...";
-            
-            console.log("--- FINISH LINE REACHED ---");
-            console.log("Checking Hub Status...");
-
-            setTimeout(() => {
-                if (typeof window.loadNextQuestion === 'function') {
-                    console.log("Calling window.loadNextQuestion()...");
-                    window.loadNextQuestion();
-                } else {
-                    console.error("Critical: window.loadNextQuestion is not a function!");
-                    feedback.innerText = "Error: Hub not found. Please refresh.";
-                }
-            }, 1500);
-        }
+                window.isCurrentQActive = false; // Reset the lock
+                feedback.innerText = "Pattern Mastered! Loading next...";
+                
+                console.log("Attempting to call window.loadNextQuestion...");
+                
+                setTimeout(() => {
+                    // Try calling the function directly from the window
+                    if (typeof window.loadNextQuestion === 'function') {
+                        window.loadNextQuestion();
+                    } else if (typeof loadNextQuestion === 'function') {
+                        loadNextQuestion();
+                    } else {
+                        console.error("Hub Error: loadNextQuestion is nowhere to be found.");
+                    }
+                }, 1500);
+            }
     } 
     // --- Handling Incorrect Answer (The bottom else you asked about) ---
     else {
