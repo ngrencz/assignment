@@ -144,17 +144,12 @@
 
         async function ensureTestUser() {
     log("Connecting...");
-    // Use window.supabaseClient to prevent "ReferenceError"
-    const client = window.supabaseClient; 
-    
-    if (!client) {
-        log("Waiting for connection...");
-        // Retry in 500ms if not ready yet
-        setTimeout(ensureTestUser, 500);
-        return;
-    }
+    const { data, error } = await supabaseClient
+        .from('assignment')
+        .select('*')
+        .eq('userName', 'test_user')
+        .maybeSingle();
 
-    const { data, error } = await client.from('assignment').select('*').eq('userName', 'test_user').maybeSingle();
     if (data) syncSliders(data);
 }
 
