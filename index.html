@@ -55,10 +55,24 @@
         </div>
 
         <div class="input-group">
+            <label for="hour-select">Class Period</label>
+            <select id="hour-select">
+                <option value="01">Hour 01</option>
+                <option value="02">Hour 02</option>
+                <option value="03">Hour 03</option>
+                <option value="04">Hour 04</option>
+                <option value="05">Hour 05</option>
+                <option value="06">Hour 06</option>
+                <option value="07">Hour 07</option>
+                <option value="00">Guest</option>
+            </select>
+        </div>
+
+        <div class="input-group">
             <label for="lesson-select">Target Lesson</label>
             <select id="lesson-select">
                 <option value="6.2.4">Lesson 6.2.4 (Transformations & Systems)</option>
-                </select>
+            </select>
         </div>
 
         <button id="login-btn" onclick="handleLogin()" style="width: 100%;">Enter Classroom</button>
@@ -75,10 +89,13 @@
         async function handleLogin() {
             const userField = document.getElementById('username');
             const lessonField = document.getElementById('lesson-select');
+            const hourField = document.getElementById('hour-select'); // Get the hour element
             const msg = document.getElementById('msg');
             const loginBtn = document.getElementById('login-btn');
             
             const username = userField.value.trim().toLowerCase();
+            const hourValue = hourField.value; // Get the selected value (e.g. "01" or "00")
+
             if (!username) {
                 msg.style.color = "#ef4444";
                 return msg.innerText = "Please enter your username.";
@@ -100,14 +117,16 @@
 
                 if (data) {
                     // User exists -> Go to assignment
+                    // (We don't update the hour on login for existing users, assuming it was set on creation)
                     proceedToAssignment(username, lessonField.value);
                 } else {
                     // User does not exist -> Offer to create account
+                    // Note: We pass the 'hourValue' into the createNewUser call below
                     msg.innerHTML = `
                         <div style="color: #ed8936; margin-bottom:12px; font-weight:bold;">
                             User not found. Is this your first time?
                         </div>
-                        <button onclick="createNewUser('${username}', '${lessonField.value}')" 
+                        <button onclick="createNewUser('${username}', '${lessonField.value}', '${hourValue}')" 
                                 style="background: var(--black); color: white; width: 100%;">
                             Yes, Create My Account
                         </button>
@@ -125,15 +144,16 @@
             }
         }
 
-        async function createNewUser(username, lesson) {
+        async function createNewUser(username, lesson, hour) {
             const msg = document.getElementById('msg');
             msg.innerText = "Setting up your portal...";
 
-            // Initialize the database row with 0 mastery for all 6.2.4 skills
+            // Initialize the database row with 0 mastery and the selected hour
             const { error } = await supabase
                 .from('assignment')
                 .insert([{ 
-                    userName: username, 
+                    userName: username,
+                    hour: hour, // Save the hour (00-07)
                     C6Transformation: 0,
                     LinearSystem: 0,
                     FigureGrowth: 0,
@@ -142,6 +162,7 @@
                 }]);
 
             if (error) {
+                console.error(error);
                 msg.innerText = "Error creating account. Try a different name.";
             } else {
                 proceedToAssignment(username, lesson);
