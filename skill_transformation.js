@@ -7,7 +7,7 @@ var moveSequence = [];
 var currentRound = 1;
 var editingIndex = -1; 
 var isAnimating = false;
-var lastTargetJSON = ""; // Prevents duplicate challenges
+var lastTargetJSON = ""; 
 
 window.initTransformationGame = async function() {
     window.isCurrentQActive = true;
@@ -35,28 +35,22 @@ function startNewRound() {
     editingIndex = -1;
     isAnimating = false;
     
-    // Force more steps as mastery increases
     let minSteps = currentMastery >= 8 ? 4 : (currentMastery >= 5 ? 3 : 2);
     let maxSteps = minSteps + 2;
     let stepCount = Math.floor(Math.random() * (maxSteps - minSteps + 1)) + minSteps;
 
     let validChallenge = false;
     while (!validChallenge) {
-        // Start shape in a random quadrant
         let startX = Math.floor(Math.random() * 3) - 1; 
         let startY = Math.floor(Math.random() * 3) - 1;
         currentShape = [[startX, startY], [startX, startY + 1], [startX + 1, startY]];
         targetShape = JSON.parse(JSON.stringify(currentShape));
 
-        let moveHistory = [];
         for (let i = 0; i < stepCount; i++) {
             let moveType = ['translation', 'reflectX', 'reflectY', 'rotate'][Math.floor(Math.random() * 4)];
-            let m = generateMove(moveType);
-            applyMoveToPoints(targetShape, m);
-            moveHistory.push(m);
+            applyMoveToPoints(targetShape, generateMove(moveType));
         }
 
-        // Check if this challenge is different from the last one and still on grid
         let targetJSON = JSON.stringify(targetShape);
         let isOnGrid = targetShape.every(p => Math.abs(p[0]) <= 5 && Math.abs(p[1]) <= 5);
         
@@ -65,13 +59,11 @@ function startNewRound() {
             validChallenge = true;
         }
     }
-
     renderUI();
 }
 
 function generateMove(type) {
     if (type === 'translation') {
-        // Ensure it actually moves (dx or dy must be non-zero)
         let dx = 0, dy = 0;
         while (dx === 0 && dy === 0) {
             dx = Math.floor(Math.random() * 5) - 2;
@@ -81,9 +73,7 @@ function generateMove(type) {
     }
     if (type === 'reflectX' || type === 'reflectY') return { type };
     if (type === 'rotate') {
-        let degs = [90, 180];
-        let dirs = ['CW', 'CCW'];
-        return { type, deg: degs[Math.floor(Math.random() * 2)], dir: dirs[Math.floor(Math.random() * 2)] };
+        return { type, deg: [90, 180][Math.floor(Math.random() * 2)], dir: ['CW', 'CCW'][Math.floor(Math.random() * 2)] };
     }
     return { type: 'translation', dx: 1, dy: 1 };
 }
@@ -111,7 +101,7 @@ function renderUI() {
     let html = `
         <div style="display: flex; justify-content: center; margin-bottom: 10px; position:relative;">
             <canvas id="gridCanvas" width="400" height="400" style="background: white; border-radius: 8px; border: 1px solid #94a3b8;"></canvas>
-            <div id="playback-label" style="display:none; position:absolute; top:10px; left:10px; background:#ef4444; color:white; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:bold;">ANIMATING...</div>
+            <div id="playback-label" style="display:none; position:absolute; top:10px; left:10px; background:#ef4444; color:white; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:bold; z-index:10;">ANIMATING...</div>
         </div>
         
         <div id="user-sequence" style="min-height:50px; background:#f1f5f9; border:2px dashed #cbd5e1; border-radius:12px; padding:10px; margin-bottom:15px; display:flex; flex-wrap:wrap; gap:8px;">
@@ -124,16 +114,16 @@ function renderUI() {
         </div>
 
         <div id="control-panel" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; pointer-events: ${isAnimating ? 'none' : 'auto'}; opacity: ${isAnimating ? 0.5 : 1};">
-            <select id="move-selector" onchange="updateSubInputs()" style="grid-column: span 2; height:40px; font-size:1rem; border-radius:8px; border:1px solid #cbd5e1;">
+            <select id="move-selector" onchange="updateSubInputs()" style="grid-column: span 2; height:45px; font-size:1rem; border-radius:8px; border:1px solid #cbd5e1;">
                 <option value="translation">Translation</option>
                 <option value="reflectX">Reflection (X-Axis)</option>
                 <option value="reflectY">Reflection (Y-Axis)</option>
                 <option value="rotate">Rotation</option>
                 <option value="dilate">Dilation</option>
             </select>
-            <div id="sub-inputs" style="grid-column: span 2; display:flex; gap:10px; align-items:center; justify-content:center; padding:5px;"></div>
-            <button class="primary-btn" onclick="saveMove()" style="grid-column: span 1; height:40px; border-radius:8px;">${editingIndex === -1 ? 'Add Step' : 'Update'}</button>
-            <button class="primary-btn" onclick="startPlayback()" style="grid-column: span 1; background:#000; color:white; height:40px; border-radius:8px;">RUN</button>
+            <div id="sub-inputs" style="grid-column: span 2; display:flex; gap:20px; align-items:center; justify-content:center; padding:10px;"></div>
+            <button class="primary-btn" onclick="saveMove()" style="grid-column: span 1; height:50px; border-radius:8px; background:#22c55e;">${editingIndex === -1 ? 'Add Step' : 'Update'}</button>
+            <button class="primary-btn" onclick="startPlayback()" style="grid-column: span 1; background:#000; color:white; height:50px; border-radius:8px;">RUN</button>
         </div>
     `;
 
@@ -155,23 +145,29 @@ window.updateSubInputs = function() {
     const container = document.getElementById('sub-inputs');
     if (val === 'translation') {
         container.innerHTML = `
-            X: <input type="number" id="dx" value="0" style="width:50px; height:35px; text-align:center;">
-            Y: <input type="number" id="dy" value="0" style="width:50px; height:35px; text-align:center;">`;
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-weight:bold;">X:</span>
+                <input type="number" id="dx" value="0" style="width:100px; height:55px; text-align:center; border-radius:8px; border:1px solid #cbd5e1; font-size:1.5rem;">
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-weight:bold;">Y:</span>
+                <input type="number" id="dy" value="0" style="width:100px; height:55px; text-align:center; border-radius:8px; border:1px solid #cbd5e1; font-size:1.5rem;">
+            </div>`;
     } else if (val === 'rotate') {
         container.innerHTML = `
-            <select id="rot-deg" style="height:35px;"><option value="90">90°</option><option value="180">180°</option></select>
-            <select id="rot-dir" style="height:35px;"><option value="CW">CW</option><option value="CCW">CCW</option></select>`;
+            <select id="rot-deg" style="height:50px; width:90px; border-radius:8px; font-size:1.1rem;"><option value="90">90°</option><option value="180">180°</option></select>
+            <select id="rot-dir" style="height:50px; width:90px; border-radius:8px; font-size:1.1rem;"><option value="CW">CW</option><option value="CCW">CCW</option></select>`;
     } else if (val === 'dilate') {
-        container.innerHTML = `Scale: <input type="number" id="dil-factor" step="0.5" value="2" style="width:60px; height:35px; text-align:center;">`;
+        container.innerHTML = `Scale: <input type="number" id="dil-factor" step="0.5" value="2" style="width:100px; height:55px; text-align:center; border-radius:8px; font-size:1.5rem;">`;
     } else container.innerHTML = "";
 }
 
 window.saveMove = function() {
     const type = document.getElementById('move-selector').value;
     let m = { type };
-    if (type === 'translation') { m.dx = parseInt(document.getElementById('dx').value); m.dy = parseInt(document.getElementById('dy').value); }
+    if (type === 'translation') { m.dx = parseInt(document.getElementById('dx').value) || 0; m.dy = parseInt(document.getElementById('dy').value) || 0; }
     else if (type === 'rotate') { m.deg = parseInt(document.getElementById('rot-deg').value); m.dir = document.getElementById('rot-dir').value; }
-    else if (type === 'dilate') { m.factor = parseFloat(document.getElementById('dil-factor').value); }
+    else if (type === 'dilate') { m.factor = parseFloat(document.getElementById('dil-factor').value) || 1; }
     
     if (editingIndex === -1) moveSequence.push(m);
     else { moveSequence[editingIndex] = m; editingIndex = -1; }
@@ -186,15 +182,31 @@ async function startPlayback() {
     isAnimating = true; renderUI();
     document.getElementById('playback-label').style.display = 'block';
 
-    let temp = JSON.parse(JSON.stringify(currentShape));
+    let currentPoints = JSON.parse(JSON.stringify(currentShape));
+    
     for (let m of moveSequence) {
-        await new Promise(r => setTimeout(r, 600)); 
-        applyMoveToPoints(temp, m);
-        draw(temp);
+        let startPoints = JSON.parse(JSON.stringify(currentPoints));
+        applyMoveToPoints(currentPoints, m); // Calculate final destination for this step
+        let endPoints = JSON.parse(JSON.stringify(currentPoints));
+
+        // Slide animation: 20 frames over 500ms
+        const frames = 20;
+        for (let f = 1; f <= frames; f++) {
+            let t = f / frames;
+            let interpolatedPoints = startPoints.map((p, i) => [
+                p[0] + (endPoints[i][0] - p[0]) * t,
+                p[1] + (endPoints[i][1] - p[1]) * t
+            ]);
+            draw(interpolatedPoints);
+            await new Promise(r => requestAnimationFrame(r));
+            await new Promise(r => setTimeout(r, 20)); // Small delay for smoothness
+        }
+        await new Promise(r => setTimeout(r, 200)); // Pause slightly after each step
     }
-    await new Promise(r => setTimeout(r, 400));
+    
+    document.getElementById('playback-label').style.display = 'none';
     isAnimating = false;
-    checkFinalMatch(temp);
+    checkFinalMatch(currentPoints);
 }
 
 function draw(pts) {
@@ -243,16 +255,27 @@ function checkFinalMatch(finalPts) {
         if (currentRound > 3) finishGame();
         else { alert("✅ Success!"); startNewRound(); }
     } else {
-        transErrorCount++; alert("❌ Mismatch. Check your coordinates."); renderUI();
+        transErrorCount++;
+        alert("❌ Mismatch. Check your coordinates.");
+        renderUI();
     }
 }
 
 async function finishGame() {
     window.isCurrentQActive = false; 
+    const qContent = document.getElementById('q-content');
+    qContent.innerHTML = `<div style="text-align:center; padding:40px;"><h3>Great Job!</h3><p>Updating mastery level...</p></div>`;
+
     if (window.supabaseClient && window.currentUser) {
-        let adj = (transErrorCount === 0) ? 1 : (transErrorCount > 3 ? -1 : 0);
-        let newScore = Math.max(0, Math.min(10, currentMastery + adj));
-        await window.supabaseClient.from('assignment').update({ C6Transformation: newScore }).eq('userName', window.currentUser);
+        try {
+            let adj = (transErrorCount === 0) ? 1 : (transErrorCount > 3 ? -1 : 0);
+            let newScore = Math.max(0, Math.min(10, currentMastery + adj));
+            await window.supabaseClient.from('assignment').update({ C6Transformation: newScore }).eq('userName', window.currentUser);
+        } catch(e) { console.error(e); }
     }
-    setTimeout(() => { if (typeof loadNextQuestion === 'function') loadNextQuestion(); }, 1500);
+    
+    setTimeout(() => { 
+        if (typeof window.loadNextQuestion === 'function') window.loadNextQuestion(); 
+        else location.reload(); 
+    }, 1500);
 }
