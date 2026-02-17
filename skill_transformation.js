@@ -8,6 +8,7 @@ var currentRound = 1;
 var editingIndex = -1; 
 var isAnimating = false;
 var lastTargetJSON = ""; 
+var mousePos = { x: 0, y: 0 };
 
 window.initTransformationGame = async function() {
     window.isCurrentQActive = true;
@@ -41,9 +42,10 @@ function startNewRound() {
 
     let validChallenge = false;
     while (!validChallenge) {
-        let startX = Math.floor(Math.random() * 3) - 1; 
-        let startY = Math.floor(Math.random() * 3) - 1;
-        currentShape = [[startX, startY], [startX, startY + 1], [startX + 1, startY]];
+        // Start shape near center
+        let startX = Math.floor(Math.random() * 5) - 2; 
+        let startY = Math.floor(Math.random() * 5) - 2;
+        currentShape = [[startX, startY], [startX, startY + 2], [startX + 2, startY]];
         targetShape = JSON.parse(JSON.stringify(currentShape));
 
         for (let i = 0; i < stepCount; i++) {
@@ -52,7 +54,8 @@ function startNewRound() {
         }
 
         let targetJSON = JSON.stringify(targetShape);
-        let isOnGrid = targetShape.every(p => Math.abs(p[0]) <= 5 && Math.abs(p[1]) <= 5);
+        // Ensure all points are within -10 to 10
+        let isOnGrid = targetShape.every(p => Math.abs(p[0]) <= 10 && Math.abs(p[1]) <= 10);
         
         if (targetJSON !== lastTargetJSON && isOnGrid) {
             lastTargetJSON = targetJSON;
@@ -64,12 +67,7 @@ function startNewRound() {
 
 function generateMove(type) {
     if (type === 'translation') {
-        let dx = 0, dy = 0;
-        while (dx === 0 && dy === 0) {
-            dx = Math.floor(Math.random() * 5) - 2;
-            dy = Math.floor(Math.random() * 5) - 2;
-        }
-        return { type, dx, dy };
+        return { type, dx: Math.floor(Math.random() * 7) - 3, dy: Math.floor(Math.random() * 7) - 3 };
     }
     if (type === 'reflectX' || type === 'reflectY') return { type };
     if (type === 'rotate') {
@@ -89,7 +87,6 @@ function applyMoveToPoints(pts, m) {
             else if ((m.deg === 90 && m.dir === 'CW')) { p[0] = y; p[1] = -x; }
             else if ((m.deg === 90 && m.dir === 'CCW')) { p[0] = -y; p[1] = x; }
         }
-        else if (m.type === 'dilate') { p[0] *= m.factor; p[1] *= m.factor; }
     });
 }
 
@@ -100,8 +97,9 @@ function renderUI() {
     
     let html = `
         <div style="display: flex; justify-content: center; margin-bottom: 10px; position:relative;">
-            <canvas id="gridCanvas" width="400" height="400" style="background: white; border-radius: 8px; border: 1px solid #94a3b8;"></canvas>
+            <canvas id="gridCanvas" width="440" height="440" style="background: white; border-radius: 8px; border: 1px solid #94a3b8; cursor: crosshair;"></canvas>
             <div id="playback-label" style="display:none; position:absolute; top:10px; left:10px; background:#ef4444; color:white; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:bold; z-index:10;">ANIMATING...</div>
+            <div id="coord-tip" style="position:absolute; bottom:10px; right:10px; background:rgba(15, 23, 42, 0.8); color:white; padding:4px 10px; border-radius:4px; font-family:monospace; font-size:12px; pointer-events:none;">(0, 0)</div>
         </div>
         
         <div id="user-sequence" style="min-height:50px; background:#f1f5f9; border:2px dashed #cbd5e1; border-radius:12px; padding:10px; margin-bottom:15px; display:flex; flex-wrap:wrap; gap:8px;">
@@ -114,20 +112,20 @@ function renderUI() {
         </div>
 
         <div id="control-panel" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; pointer-events: ${isAnimating ? 'none' : 'auto'}; opacity: ${isAnimating ? 0.5 : 1};">
-            <select id="move-selector" onchange="updateSubInputs()" style="grid-column: span 2; height:45px; font-size:1rem; border-radius:8px; border:1px solid #cbd5e1;">
+            <select id="move-selector" onchange="updateSubInputs()" style="grid-column: span 2; height:38px; font-size:0.95rem; border-radius:6px; border:1px solid #cbd5e1;">
                 <option value="translation">Translation</option>
                 <option value="reflectX">Reflection (X-Axis)</option>
                 <option value="reflectY">Reflection (Y-Axis)</option>
                 <option value="rotate">Rotation</option>
-                <option value="dilate">Dilation</option>
             </select>
-            <div id="sub-inputs" style="grid-column: span 2; display:flex; gap:20px; align-items:center; justify-content:center; padding:10px;"></div>
-            <button class="primary-btn" onclick="saveMove()" style="grid-column: span 1; height:50px; border-radius:8px; background:#22c55e;">${editingIndex === -1 ? 'Add Step' : 'Update'}</button>
-            <button class="primary-btn" onclick="startPlayback()" style="grid-column: span 1; background:#000; color:white; height:50px; border-radius:8px;">RUN</button>
+            <div id="sub-inputs" style="grid-column: span 2; display:flex; gap:15px; align-items:center; justify-content:center; padding:5px;"></div>
+            <button class="primary-btn" onclick="saveMove()" style="grid-column: span 1; height:42px; border-radius:6px; background:#22c55e;">${editingIndex === -1 ? 'Add Step' : 'Update'}</button>
+            <button class="primary-btn" onclick="startPlayback()" style="grid-column: span 1; background:#000; color:white; height:42px; border-radius:6px;">RUN</button>
         </div>
     `;
 
     qContent.innerHTML = html;
+    setupCanvas();
     updateSubInputs(); 
     draw(currentShape); 
 }
@@ -137,7 +135,26 @@ function formatMove(m) {
     if (m.type === 'reflectX') return `Ref-X`;
     if (m.type === 'reflectY') return `Ref-Y`;
     if (m.type === 'rotate') return `Rot ${m.deg}${m.dir}`;
-    if (m.type === 'dilate') return `Dil x${m.factor}`;
+}
+
+function setupCanvas() {
+    const canvas = document.getElementById('gridCanvas');
+    const tip = document.getElementById('coord-tip');
+    if (!canvas) return;
+
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // Convert to grid coords (20x20 grid, 440px canvas, 20px offset/border each side = 20px steps)
+        const gridX = Math.round((x - 220) / 20);
+        const gridY = Math.round((220 - y) / 20);
+        
+        if (Math.abs(gridX) <= 10 && Math.abs(gridY) <= 10) {
+            tip.innerText = `(${gridX}, ${gridY})`;
+        }
+    });
 }
 
 window.updateSubInputs = function() {
@@ -145,29 +162,32 @@ window.updateSubInputs = function() {
     const container = document.getElementById('sub-inputs');
     if (val === 'translation') {
         container.innerHTML = `
-            <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-weight:bold;">X:</span>
-                <input type="number" id="dx" value="0" style="width:100px; height:55px; text-align:center; border-radius:8px; border:1px solid #cbd5e1; font-size:1.5rem;">
+            <div style="display:flex; align-items:center; gap:5px;">
+                <span>X:</span>
+                <input type="number" id="dx" value="0" style="width:90px; height:35px; text-align:center; border-radius:4px; border:1px solid #cbd5e1; font-size:1rem;">
             </div>
-            <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-weight:bold;">Y:</span>
-                <input type="number" id="dy" value="0" style="width:100px; height:55px; text-align:center; border-radius:8px; border:1px solid #cbd5e1; font-size:1.5rem;">
+            <div style="display:flex; align-items:center; gap:5px;">
+                <span>Y:</span>
+                <input type="number" id="dy" value="0" style="width:90px; height:35px; text-align:center; border-radius:4px; border:1px solid #cbd5e1; font-size:1rem;">
             </div>`;
     } else if (val === 'rotate') {
         container.innerHTML = `
-            <select id="rot-deg" style="height:50px; width:90px; border-radius:8px; font-size:1.1rem;"><option value="90">90°</option><option value="180">180°</option></select>
-            <select id="rot-dir" style="height:50px; width:90px; border-radius:8px; font-size:1.1rem;"><option value="CW">CW</option><option value="CCW">CCW</option></select>`;
-    } else if (val === 'dilate') {
-        container.innerHTML = `Scale: <input type="number" id="dil-factor" step="0.5" value="2" style="width:100px; height:55px; text-align:center; border-radius:8px; font-size:1.5rem;">`;
+            <select id="rot-deg" style="height:35px;"><option value="90">90°</option><option value="180">180°</option></select>
+            <select id="rot-dir" style="height:35px;"><option value="CW">CW</option><option value="CCW">CCW</option></select>`;
     } else container.innerHTML = "";
 }
 
 window.saveMove = function() {
     const type = document.getElementById('move-selector').value;
     let m = { type };
-    if (type === 'translation') { m.dx = parseInt(document.getElementById('dx').value) || 0; m.dy = parseInt(document.getElementById('dy').value) || 0; }
-    else if (type === 'rotate') { m.deg = parseInt(document.getElementById('rot-deg').value); m.dir = document.getElementById('rot-dir').value; }
-    else if (type === 'dilate') { m.factor = parseFloat(document.getElementById('dil-factor').value) || 1; }
+    if (type === 'translation') { 
+        m.dx = parseInt(document.getElementById('dx').value) || 0; 
+        m.dy = parseInt(document.getElementById('dy').value) || 0; 
+    }
+    else if (type === 'rotate') { 
+        m.deg = parseInt(document.getElementById('rot-deg').value); 
+        m.dir = document.getElementById('rot-dir').value; 
+    }
     
     if (editingIndex === -1) moveSequence.push(m);
     else { moveSequence[editingIndex] = m; editingIndex = -1; }
@@ -186,11 +206,10 @@ async function startPlayback() {
     
     for (let m of moveSequence) {
         let startPoints = JSON.parse(JSON.stringify(currentPoints));
-        applyMoveToPoints(currentPoints, m); // Calculate final destination for this step
+        applyMoveToPoints(currentPoints, m);
         let endPoints = JSON.parse(JSON.stringify(currentPoints));
 
-        // Slide animation: 20 frames over 500ms
-        const frames = 20;
+        const frames = 15;
         for (let f = 1; f <= frames; f++) {
             let t = f / frames;
             let interpolatedPoints = startPoints.map((p, i) => [
@@ -198,10 +217,9 @@ async function startPlayback() {
                 p[1] + (endPoints[i][1] - p[1]) * t
             ]);
             draw(interpolatedPoints);
-            await new Promise(r => requestAnimationFrame(r));
-            await new Promise(r => setTimeout(r, 20)); // Small delay for smoothness
+            await new Promise(r => setTimeout(r, 25));
         }
-        await new Promise(r => setTimeout(r, 200)); // Pause slightly after each step
+        await new Promise(r => setTimeout(r, 150));
     }
     
     document.getElementById('playback-label').style.display = 'none';
@@ -212,26 +230,32 @@ async function startPlayback() {
 function draw(pts) {
     const canvas = document.getElementById('gridCanvas');
     if (!canvas) return;
-    const ctx = canvas.getContext('2d'), size = 400, step = 40, center = size/2;
+    const ctx = canvas.getContext('2d'), size = 440, step = 20, center = size/2;
     ctx.clearRect(0,0,size,size);
 
-    ctx.strokeStyle="#e2e8f0"; ctx.beginPath();
+    // Grid Lines
+    ctx.strokeStyle="#f1f5f9"; ctx.lineWidth=1;
+    ctx.beginPath();
     for(let i=0; i<=size; i+=step){ ctx.moveTo(i,0); ctx.lineTo(i,size); ctx.moveTo(0,i); ctx.lineTo(size,i); } ctx.stroke();
     
-    ctx.strokeStyle="#475569"; ctx.lineWidth=2; ctx.beginPath();
+    // Main Axes
+    ctx.strokeStyle="#64748b"; ctx.lineWidth=2; ctx.beginPath();
     ctx.moveTo(center,0); ctx.lineTo(center,size); ctx.moveTo(0,center); ctx.lineTo(size,center); ctx.stroke();
 
-    ctx.fillStyle = "#64748b"; ctx.font = "10px Arial"; ctx.textAlign = "center";
-    for(let i = -5; i <= 5; i++) {
+    // Axis Labels
+    ctx.fillStyle = "#94a3b8"; ctx.font = "9px Arial"; ctx.textAlign = "center";
+    for(let i = -10; i <= 10; i++) {
         if(i === 0) continue;
-        ctx.fillText(i, center + (i * step), center + 15);
-        ctx.fillText(i, center - 12, center - (i * step) + 4);
+        ctx.fillText(i, center + (i * step), center + 12);
+        ctx.fillText(i, center - 10, center - (i * step) + 3);
     }
 
-    ctx.setLineDash([5,3]); ctx.strokeStyle="rgba(0,0,0,0.2)"; ctx.fillStyle="rgba(0,0,0,0.05)";
+    // Ghost (Target)
+    ctx.setLineDash([4,2]); ctx.strokeStyle="rgba(0,0,0,0.25)"; ctx.fillStyle="rgba(0,0,0,0.05)";
     drawShape(ctx, targetShape, center, step);
 
-    ctx.setLineDash([]); ctx.strokeStyle="#166534"; ctx.fillStyle="rgba(34, 197, 94, 0.6)"; 
+    // Active Shape
+    ctx.setLineDash([]); ctx.strokeStyle="#15803d"; ctx.fillStyle="rgba(34, 197, 94, 0.6)"; 
     drawShape(ctx, pts, center, step);
 }
 
@@ -256,7 +280,7 @@ function checkFinalMatch(finalPts) {
         else { alert("✅ Success!"); startNewRound(); }
     } else {
         transErrorCount++;
-        alert("❌ Mismatch. Check your coordinates.");
+        alert("❌ Mismatch. Check your coordinates and try again.");
         renderUI();
     }
 }
@@ -264,7 +288,7 @@ function checkFinalMatch(finalPts) {
 async function finishGame() {
     window.isCurrentQActive = false; 
     const qContent = document.getElementById('q-content');
-    qContent.innerHTML = `<div style="text-align:center; padding:40px;"><h3>Great Job!</h3><p>Updating mastery level...</p></div>`;
+    qContent.innerHTML = `<div style="text-align:center; padding:40px;"><h3>Great Job!</h3><p>Saving progress...</p></div>`;
 
     if (window.supabaseClient && window.currentUser) {
         try {
