@@ -17,6 +17,12 @@
         }
         .login-card {
             text-align: center;
+            width: 100%;
+            max-width: 400px; /* Constrains the card so boxes aren't too wide */
+            padding: 40px;    /* Adds breathing room inside the card */
+            background: white; /* Optional: Defines the card background */
+            border-radius: 15px; /* Optional: Rounded corners for the card */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); /* Optional: Subtle shadow */
         }
         #msg {
             margin-top: 15px;
@@ -33,6 +39,9 @@
             font-weight: bold;
             color: var(--black);
         }
+        
+        /* UPDATED: Shared styles for both Inputs and Selects */
+        input[type="text"],
         select {
             width: 100%;
             padding: 10px;
@@ -40,6 +49,8 @@
             border-radius: 10px;
             background: white;
             font-size: 1rem;
+            box-sizing: border-box; /* Ensures padding doesn't affect width */
+            height: 45px; /* Enforce same height for visual consistency */
         }
     </style>
 </head>
@@ -89,12 +100,12 @@
         async function handleLogin() {
             const userField = document.getElementById('username');
             const lessonField = document.getElementById('lesson-select');
-            const hourField = document.getElementById('hour-select'); // Get the hour element
+            const hourField = document.getElementById('hour-select');
             const msg = document.getElementById('msg');
             const loginBtn = document.getElementById('login-btn');
             
             const username = userField.value.trim().toLowerCase();
-            const hourValue = hourField.value; // Get the selected value (e.g. "01" or "00")
+            const hourValue = hourField.value;
 
             if (!username) {
                 msg.style.color = "#ef4444";
@@ -106,7 +117,7 @@
             msg.innerText = "Checking student records...";
 
             try {
-                // 1. Check if user exists in the 'assignment' table
+                // 1. Check if user exists
                 let { data, error } = await supabase
                     .from('assignment')
                     .select('userName')
@@ -116,12 +127,9 @@
                 if (error && error.code !== 'PGRST116') throw error;
 
                 if (data) {
-                    // User exists -> Go to assignment
-                    // (We don't update the hour on login for existing users, assuming it was set on creation)
                     proceedToAssignment(username, lessonField.value);
                 } else {
-                    // User does not exist -> Offer to create account
-                    // Note: We pass the 'hourValue' into the createNewUser call below
+                    // New User Flow
                     msg.innerHTML = `
                         <div style="color: #ed8936; margin-bottom:12px; font-weight:bold;">
                             User not found. Is this your first time?
@@ -148,12 +156,11 @@
             const msg = document.getElementById('msg');
             msg.innerText = "Setting up your portal...";
 
-            // Initialize the database row with 0 mastery and the selected hour
             const { error } = await supabase
                 .from('assignment')
                 .insert([{ 
                     userName: username,
-                    hour: hour, // Save the hour (00-07)
+                    hour: hour, 
                     C6Transformation: 0,
                     LinearSystem: 0,
                     FigureGrowth: 0,
@@ -170,7 +177,6 @@
         }
 
         function proceedToAssignment(username, lesson) {
-            // Store variables for the Hub to use on the next page
             sessionStorage.setItem('current_user', username);
             sessionStorage.setItem('target_lesson', lesson);
             window.location.href = 'assignment.html';
