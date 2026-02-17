@@ -169,7 +169,11 @@ function initCanvas() {
 
 async function finalize() {
     const score = Math.max(1, 10 - linearErrorCount);
-    // Returning to the original direct call
+    // Use the global supabaseClient
     await supabaseClient.from('assignment').update({ LinearSystem: score }).eq('userName', window.currentUser);
-    window.loadNextQuestion();
+    
+    // Ensure this matches the Hub's function name exactly
+    if (typeof window.loadNextQuestion === 'function') {
+        window.loadNextQuestion();
+    }
 }
