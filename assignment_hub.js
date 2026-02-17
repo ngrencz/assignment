@@ -160,7 +160,9 @@ async function loadNextQuestion() {
         { id: 'BoxPlot', fn: typeof initBoxPlotGame !== 'undefined' ? initBoxPlotGame : null }
     ].filter(s => s.fn !== null);
 
-    if (window.targetLesson === '6.2.4') {
+    // CHANGE 1: Accept BOTH the old lesson and the new Review lesson
+    if (window.targetLesson === '6.2.4' || window.targetLesson === 'C6Review') {
+        
         if (!window.hasDonePrimaryLesson) {
             window.hasDonePrimaryLesson = true;
             window.skillsCompletedThisSession.push('C6Transformation');
@@ -196,8 +198,24 @@ async function loadNextQuestion() {
 
 async function finishAssignment() {
     window.isCurrentQActive = false;
+
+    // Determine the database column based on the lesson
+    let dbColumn = 'C624_Completed'; // Default for the old lesson
+    
+    if (window.targetLesson === 'C6Review') {
+        dbColumn = 'C6Review'; // <--- Changed to your new column name
+    }
+
+    // Prepare the update object
+    const updateObj = {};
+    updateObj[dbColumn] = true;
+
     try {
-        await window.supabaseClient.from('assignment').update({ C624_Completed: true }).eq('userName', window.currentUser);
+        await window.supabaseClient
+            .from('assignment')
+            .update(updateObj)
+            .eq('userName', window.currentUser);
+
         document.getElementById('work-area').innerHTML = `
             <div style="text-align: center; padding: 40px; background: #f8fafc; border-radius: 12px; border: 2px solid #22c55e;">
                 <h1 style="color: #22c55e;">Goal Reached!</h1>
@@ -205,7 +223,9 @@ async function finishAssignment() {
                 <button onclick="location.reload()" class="primary-btn">Start New Session</button>
             </div>
         `;
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+        console.error("Error saving completion:", err); 
+    }
 }
 
 window.onload = loadNextQuestion;
