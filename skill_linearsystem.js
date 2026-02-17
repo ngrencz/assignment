@@ -1,236 +1,193 @@
-var linearErrorCount = 0;
-var currentStep = 1; 
-var currentSystem = {};
-var userPoints = [];
+var transErrorCount = 0;
+var currentRound = 0;
+var totalRounds = 3;
+var currentTask = {};
+var userSequence = []; // Stores the student's step-by-step inputs
+var currentMastery = 0;
 
-window.initLinearSystemGame = async function() {
+window.initTransformationGame = async function() {
     window.isCurrentQActive = true;
     window.currentQSeconds = 0;
-    linearErrorCount = 0;
-    currentStep = 1;
-    userPoints = [];
+    transErrorCount = 0;
+    currentRound = 0;
 
-    const type = Math.floor(Math.random() * 3);
-    const tx = Math.floor(Math.random() * 13) - 6; 
-    const ty = Math.floor(Math.random() * 13) - 6;
+    // 1. Fetch Skill to determine move count
+    try {
+        const { data } = await window.supabaseClient
+            .from('assignment')
+            .select('Transformation')
+            .eq('userName', window.currentUser)
+            .maybeSingle();
+        currentMastery = data ? (data.Transformation || 0) : 0;
+    } catch (e) { currentMastery = 0; }
 
-    const slopes = [-3, -2, -1, 1, 2, 3];
-    const m1 = slopes[Math.floor(Math.random() * slopes.length)];
-    const b1 = ty - (m1 * tx);
-
-    let m2, b2, correctCount;
-
-    if (type === 0) { 
-        do { m2 = slopes[Math.floor(Math.random() * slopes.length)]; } while (m1 === m2);
-        b2 = ty - (m2 * tx);
-        correctCount = 1;
-    } else if (type === 1) { 
-        m2 = m1;
-        b2 = b1 + (b1 > 0 ? -4 : 4);
-        correctCount = 0;
-    } else { 
-        m2 = m1;
-        b2 = b1;
-        correctCount = Infinity;
-    }
-
-    const formatComplex = (m, b, isSecond) => {
-        const coeffOptions = [2, 3];
-        const coeff = (type === 2 && isSecond) ? coeffOptions[Math.floor(Math.random() * coeffOptions.length)] : 1;
-        let leftSide = coeff === 1 ? "y" : `${coeff}y`;
-        let mVal = m * coeff;
-        let bVal = b * coeff;
-        let mPart = (mVal === 1) ? "x" : (mVal === -1) ? "-x" : mVal + "x";
-        let bPart = bVal === 0 ? "" : (bVal > 0 ? " + " + bVal : " - " + Math.abs(bVal));
-        return `${leftSide} = ${mPart}${bPart}`;
-    };
-
-    currentSystem = {
-        m1, b1, m2, b2, tx, ty, correctCount,
-        eq1Disp: formatComplex(m1, b1, false),
-        eq2Disp: formatComplex(m2, b2, true),
-        s1: `y = ${m1 === 1 ? '' : m1 === -1 ? '-' : m1}x ${b1 >= 0 ? '+ '+b1 : '- '+Math.abs(b1)}`,
-        s2: `y = ${m2 === 1 ? '' : m2 === -1 ? '-' : m2}x ${b2 >= 0 ? '+ '+b2 : '- '+Math.abs(b2)}`
-    };
-
-    renderLinearUI();
+    startNewRound();
 };
 
-function renderLinearUI() {
+function startNewRound() {
+    userSequence = [];
+    
+    // Determine number of moves based on mastery
+    let moveCount = 3;
+    if (currentMastery >= 8) moveCount = 6;
+    else if (currentMastery >= 5) moveCount = 5;
+
+    // Generate a starting point
+    let startX = Math.floor(Math.random() * 11) - 5;
+    let startY = Math.floor(Math.random() * 11) - 5;
+    
+    // Generate the target path
+    let path = [];
+    let curX = startX;
+    let curY = startY;
+
+    for (let i = 0; i < moveCount; i++) {
+        let move;
+        // Ensure at least one translation
+        const forceTrans = (i === 0);
+        const typeRoll = forceTrans ? 0 : Math.floor(Math.random() * 4);
+
+        if (typeRoll === 0) { // Translation
+            let dx = Math.floor(Math.random() * 11) - 5;
+            let dy = Math.floor(Math.random() * 11) - 5;
+            if (dx === 0 && dy === 0) dx = 1;
+            move = { type: 'translation', dx, dy, label: `Translate by (${dx}, ${dy})` };
+            curX += dx; curY += dy;
+        } 
+        else if (typeRoll === 1) { // Reflection
+            const axes = ['x-axis', 'y-axis'];
+            let axis = axes[Math.floor(Math.random() * axes.length)];
+            move = { type: 'reflection', axis, label: `Reflect over ${axis}` };
+            if (axis === 'x-axis') curY = -curY; else curX = -curX;
+        }
+        else if (typeRoll === 2) { // Rotation
+            const degrees = [90, 180, 270];
+            let deg = degrees[Math.floor(Math.random() * degrees.length)];
+            move = { type: 'rotation', deg, label: `Rotate ${deg}° Counter-Clockwise` };
+            if (deg === 90) { let t = curX; curX = -curY; curY = t; }
+            else if (deg === 180) { curX = -curX; curY = -curY; }
+            else { let t = curX; curX = curY; curY = -t; }
+        }
+        else { // Dilation (Simple for now)
+            let factor = Math.random() > 0.5 ? 2 : 0.5;
+            move = { type: 'dilation', factor, label: `Dilate by scale factor ${factor}` };
+            curX *= factor; curY *= factor;
+        }
+        path.push(move);
+    }
+
+    currentTask = { startX, startY, endX: curX, endY: curY, path, moveCount };
+    renderTransformationUI();
+}
+
+function renderTransformationUI() {
     const qContent = document.getElementById('q-content');
-    if (!qContent) return;
-    document.getElementById('q-title').innerText = "System Analysis";
+    document.getElementById('q-title').innerText = `Geometric Transformations (Round ${currentRound + 1}/3)`;
 
     let html = `
-        <div style="background:#f1f5f9; padding:15px; border-radius:12px; margin-bottom:10px; border: 1px solid #cbd5e1; text-align:center;">
-            <p style="font-family:monospace; font-size:1.1rem; margin:0;">
-                Eq 1: <strong>${currentSystem.eq1Disp}</strong><br>
-                Eq 2: <strong>${currentSystem.eq2Disp}</strong>
-            </p>
-        </div>`;
+        <div style="text-align:center; background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0; margin-bottom:20px;">
+            <p style="font-size:1.2rem; margin:0;">Start Point: <strong>(${currentTask.startX}, ${currentTask.startY})</strong></p>
+            <p style="font-size:1.2rem; margin:10px 0;">Final Image: <strong>(${currentTask.endX}, ${currentTask.endY})</strong></p>
+            <p style="color:#64748b; font-size:0.9rem;">Describe the ${currentTask.moveCount} steps taken to get there.</p>
+        </div>
 
-    if (currentStep < 4) {
-        const prompts = [
-            `Is (${currentSystem.tx}, ${currentSystem.ty}) a solution to BOTH?`,
-            `Is (${currentSystem.tx + 1}, ${currentSystem.ty - 1}) a solution to BOTH?`,
-            `How many solutions exist?`
-        ];
-        html += `<p style="text-align:center; font-weight:bold; margin-bottom:15px;">${prompts[currentStep-1]}</p>
-                 <div style="display:flex; justify-content:center; gap:10px; margin-bottom:20px;">`;
-        if (currentStep < 3) {
-            html += `<button class="primary-btn" onclick="handleStep(true)">Yes</button>
-                     <button class="secondary-btn" onclick="handleStep(false)">No</button>`;
-        } else {
-            html += `<button class="primary-btn" onclick="handleCount(1)">One</button>
-                     <button class="primary-btn" onclick="handleCount(0)">None</button>
-                     <button class="primary-btn" onclick="handleCount(Infinity)">Infinite</button>`;
-        }
-        html += `</div>`;
+        <div id="move-list" style="margin-bottom:20px;">
+            ${userSequence.map((m, i) => `<div style="padding:8px; background:#f1f5f9; margin-bottom:5px; border-radius:6px;">Step ${i+1}: ${m.label}</div>`).join('')}
+        </div>
+    `;
+
+    if (userSequence.length < currentTask.moveCount) {
+        html += `
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; background:white; padding:15px; border-radius:8px; border:1px solid #cbd5e1;">
+                <select id="trans-type" class="math-input" style="width:100%" onchange="toggleInputs()">
+                    <option value="translation">Translation</option>
+                    <option value="reflection">Reflection</option>
+                    <option value="rotation">Rotation</option>
+                    <option value="dilation">Dilation</option>
+                </select>
+                <div id="trans-params">
+                    <input type="number" id="p1" placeholder="dx" style="width:45%" class="math-input">
+                    <input type="number" id="p2" placeholder="dy" style="width:45%" class="math-input">
+                </div>
+                <button onclick="addMove()" class="primary-btn" style="grid-column: span 2;">Add Move</button>
+            </div>
+        `;
     } else {
-        html += `<div style="text-align:center; margin-bottom:5px; font-size:0.85rem; color:#64748b;">Hint: ${currentSystem.s1} | ${currentSystem.s2}</div>
-                 <div style="position:relative; width:360px; margin:0 auto; background:white;">
-                    <div id="coord-hover" style="position:absolute; top:5px; right:5px; background:white; padding:2px 8px; border:1px solid #333; border-radius:4px; font-family:monospace; font-weight:bold; z-index:100;">(0, 0)</div>
-                    <canvas id="systemCanvas" width="360" height="360" style="border:2px solid #333; display:block; cursor:crosshair;"></canvas>
-                 </div>
-                 <div id="graph-status" style="text-align:center; color:#3b82f6; font-weight:bold; margin-top:8px;">Line 1: Plot Point 1</div>`;
+        html += `<button onclick="checkSequence()" class="primary-btn" style="width:100%">Verify Sequence</button>`;
     }
 
     qContent.innerHTML = html;
-    if (currentStep === 4) initCanvas();
 }
 
-window.handleStep = function(choice) {
-    const isCorrect = (currentStep === 1) ? (currentSystem.correctCount !== 0) : false; 
-    if (choice === isCorrect) { currentStep++; renderLinearUI(); }
-    else { linearErrorCount++; alert("Incorrect."); }
-};
-
-window.handleCount = function(val) {
-    if (val === currentSystem.correctCount) { currentStep = 4; renderLinearUI(); }
-    else { linearErrorCount++; alert("Check the slopes!"); }
-};
-
-function initCanvas() {
-    const canvas = document.getElementById('systemCanvas');
-    const hover = document.getElementById('coord-hover');
-    const ctx = canvas.getContext('2d');
-    const size = 360, gridMax = 10, step = size / (gridMax * 2);
-
-    function drawGrid() {
-        ctx.clearRect(0,0,size,size);
-        ctx.strokeStyle = "#e5e7eb"; ctx.lineWidth = 1;
-        ctx.font = "10px sans-serif"; ctx.fillStyle = "#94a3b8"; ctx.textAlign = "center";
-        
-        for(let i=-gridMax; i<=gridMax; i++) {
-            let pos = size/2 + i*step;
-            ctx.beginPath(); ctx.moveTo(pos, 0); ctx.lineTo(pos, size); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, pos); ctx.lineTo(size, pos); ctx.stroke();
-            if(i !== 0) {
-                ctx.fillText(i, pos, size/2 + 15);
-                ctx.fillText(-i, size/2 - 15, pos + 4);
-            }
-        }
-        ctx.strokeStyle = "#1e293b"; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(size/2, 0); ctx.lineTo(size/2, size); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, size/2); ctx.lineTo(size, size/2); ctx.stroke();
-        
-        userPoints.forEach((p, idx) => {
-            ctx.fillStyle = idx < 2 ? "#3b82f6" : "#ef4444";
-            ctx.beginPath(); ctx.arc(size/2 + p.x*step, size/2 - p.y*step, 5, 0, Math.PI * 2); ctx.fill();
-        });
-
-        if (userPoints.length >= 2) renderLine(userPoints[0], userPoints[1], "#3b82f6");
-        if (userPoints.length === 4) renderLine(userPoints[2], userPoints[3], "#ef4444");
+window.toggleInputs = function() {
+    const type = document.getElementById('trans-type').value;
+    const container = document.getElementById('trans-params');
+    if (type === 'translation') {
+        container.innerHTML = `<input type="number" id="p1" placeholder="dx" style="width:45%" class="math-input"> <input type="number" id="p2" placeholder="dy" style="width:45%" class="math-input">`;
+    } else if (type === 'reflection') {
+        container.innerHTML = `<select id="p1" class="math-input" style="width:100%"><option value="x-axis">x-axis</option><option value="y-axis">y-axis</option></select>`;
+    } else if (type === 'rotation') {
+        container.innerHTML = `<select id="p1" class="math-input" style="width:100%"><option value="90">90° CCW</option><option value="180">180°</option><option value="270">270° CCW</option></select>`;
+    } else {
+        container.innerHTML = `<input type="number" id="p1" placeholder="scale" step="0.1" style="width:100%" class="math-input">`;
     }
-
-    function renderLine(p1, p2, color) {
-        const m = (p2.y - p1.y) / (p2.x - p1.x);
-        ctx.strokeStyle = color; ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(size/2 + (p1.x-15)*step, size/2 - (p1.y + m*(p1.x-15 - p1.x))*step);
-        ctx.lineTo(size/2 + (p1.x+15)*step, size/2 - (p1.y + m*(p1.x+15 - p1.x))*step);
-        ctx.stroke();
-    }
-
-    canvas.onmousemove = function(e) {
-        const rect = canvas.getBoundingClientRect();
-        const gx = Math.round((e.clientX - rect.left - size/2) / step);
-        const gy = Math.round((size/2 - (e.clientY - rect.top)) / step);
-        if(hover) hover.innerText = `(${gx}, ${gy})`;
-    };
-
-    canvas.onclick = function(e) {
-        if (userPoints.length >= 4) return;
-        const rect = canvas.getBoundingClientRect();
-        const gx = Math.round((e.clientX - rect.left - size/2) / step);
-        const gy = Math.round((size/2 - (e.clientY - rect.top)) / step);
-        
-        userPoints.push({x: gx, y: gy});
-        drawGrid();
-
-        const status = document.getElementById('graph-status');
-        if (userPoints.length === 2) {
-            if (validate(1)) {
-                if(status) status.innerText = "Line 1 Saved. Line 2: Point 1";
-            } else {
-                alert("Incorrect. Point not on Eq 1."); userPoints = []; drawGrid();
-            }
-        } else if (userPoints.length === 4) {
-            if (validate(2)) {
-                if(status) status.innerText = "Correct! Set Complete.";
-                finishGame(); 
-            } else {
-                alert("Incorrect. Point not on Eq 2."); userPoints = [userPoints[0], userPoints[1]]; drawGrid();
-            }
-        } else {
-            if(status) status.innerText = userPoints.length === 1 ? "Line 1: Point 2" : "Line 2: Point 2";
-        }
-    };
-
-    function validate(n) {
-        const p1 = userPoints[n===1?0:2], p2 = userPoints[n===1?1:3];
-        const m = n===1?currentSystem.m1:currentSystem.m2;
-        const b = n===1?currentSystem.b1:currentSystem.b2;
-        if (p1.x === p2.x && p1.y === p2.y) return false;
-        return (p1.y === m * p1.x + b && p2.y === m * p2.x + b);
-    }
-
-    drawGrid();
 }
 
-async function finishGame() {
-    window.isCurrentQActive = false; // Stop the timer like in SolveX
+window.addMove = function() {
+    const type = document.getElementById('trans-type').value;
+    let move = { type };
+    if (type === 'translation') {
+        move.dx = parseInt(document.getElementById('p1').value);
+        move.dy = parseInt(document.getElementById('p2').value);
+        move.label = `Translate (${move.dx}, ${move.dy})`;
+    } else if (type === 'reflection') {
+        move.axis = document.getElementById('p1').value;
+        move.label = `Reflect over ${move.axis}`;
+    } else if (type === 'rotation') {
+        move.deg = parseInt(document.getElementById('p1').value);
+        move.label = `Rotate ${move.deg}° CCW`;
+    } else {
+        move.factor = parseFloat(document.getElementById('p1').value);
+        move.label = `Dilate by ${move.factor}`;
+    }
+    userSequence.push(move);
+    renderTransformationUI();
+}
 
+window.checkSequence = function() {
+    let x = currentTask.startX;
+    let y = currentTask.startY;
+
+    userSequence.forEach(m => {
+        if (m.type === 'translation') { x += m.dx; y += m.dy; }
+        else if (m.type === 'reflection') { if (m.axis === 'x-axis') y = -y; else x = -x; }
+        else if (m.type === 'rotation') {
+            if (m.deg === 90) { let t = x; x = -y; y = t; }
+            else if (m.deg === 180) { x = -x; y = -y; }
+            else { let t = x; x = y; y = -t; }
+        } else if (m.type === 'dilation') { x *= m.factor; y *= m.factor; }
+    });
+
+    if (Math.abs(x - currentTask.endX) < 0.1 && Math.abs(y - currentTask.endY) < 0.1) {
+        currentRound++;
+        if (currentRound >= totalRounds) finishTransGame();
+        else startNewRound();
+    } else {
+        transErrorCount++;
+        alert("The final coordinates don't match! Try a different sequence.");
+        userSequence = [];
+        renderTransformationUI();
+    }
+}
+
+async function finishTransGame() {
+    window.isCurrentQActive = false;
     if (window.supabaseClient && window.currentUser) {
         try {
-            // Get current score
-            const { data } = await window.supabaseClient
-                .from('assignment')
-                .select('LinearSystem')
-                .eq('userName', window.currentUser)
-                .maybeSingle();
-
-            let currentScore = data ? (data.LinearSystem || 0) : 0;
-            let adjustment = (linearErrorCount === 0) ? 1 : 0;
-            let newScore = Math.max(0, Math.min(10, currentScore + adjustment));
-
-            // Perform Update
-            await window.supabaseClient
-                .from('assignment')
-                .update({ LinearSystem: newScore })
-                .eq('userName', window.currentUser);
-            
-        } catch(e) { 
-            console.error("Database sync failed:", e); 
-        }
+            let adjustment = (transErrorCount === 0) ? 1 : (transErrorCount > 3 ? -1 : 0);
+            let newScore = Math.max(0, Math.min(10, currentMastery + adjustment));
+            await window.supabaseClient.from('assignment').update({ Transformation: newScore }).eq('userName', window.currentUser);
+        } catch(e) { console.error(e); }
     }
-    
-    // Exact delay and call style from the working SolveX module
-    setTimeout(() => { 
-        if (typeof loadNextQuestion === 'function') {
-            loadNextQuestion(); 
-        } else {
-            location.reload();
-        }
-    }, 1500);
+    setTimeout(() => { loadNextQuestion(); }, 1500);
 }
