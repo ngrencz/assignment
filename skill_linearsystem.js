@@ -10,47 +10,56 @@ window.initLinearSystemGame = async function() {
     currentStep = 1;
     userPoints = [];
 
-    // 0 = One, 1 = None, 2 = Infinite
-    const systemType = Math.floor(Math.random() * 3);
+    // 1. Pick Type: 0=One, 1=None, 2=Infinite
+    const type = Math.floor(Math.random() * 3);
     
-    // --- CONSTRAINED RANDOMIZER ---
-    // We limit slopes and intercepts so lines ALWAYS fit on a 10x10 grid
-    const possibleSlopes = [-2, -1, 1, 2]; 
-    let m1 = possibleSlopes[Math.floor(Math.random() * possibleSlopes.length)];
-    
-    // Ensure b is between -4 and 4 so it's clearly visible
-    let b1 = Math.floor(Math.random() * 9) - 4; 
-    
+    // 2. Target intersection point (always within -4 to 4)
+    const tx = Math.floor(Math.random() * 9) - 4;
+    const ty = Math.floor(Math.random() * 9) - 4;
+
+    // 3. Generate Line 1
+    const slopes = [-2, -1, 1, 2];
+    const m1 = slopes[Math.floor(Math.random() * slopes.length)];
+    const b1 = ty - (m1 * tx);
+
     let m2, b2, correctCount;
 
-    if (systemType === 0) { // One Solution
-        do { m2 = possibleSlopes[Math.floor(Math.random() * possibleSlopes.length)]; } while (m1 === m2);
-        // Calculate b2 so it intersects at an integer point within the grid
-        let tx = Math.floor(Math.random() * 7) - 3; 
-        let ty = m1 * tx + b1;
+    if (type === 0) { // ONE SOLUTION
+        do { m2 = slopes[Math.floor(Math.random() * slopes.length)]; } while (m1 === m2);
         b2 = ty - (m2 * tx);
         correctCount = 1;
-    } else if (systemType === 1) { // No Solution
+    } else if (type === 1) { // NO SOLUTION
         m2 = m1;
-        b2 = b1 + (b1 > 0 ? -3 : 3); // Shift intercept significantly
+        b2 = b1 + (b1 > 0 ? -3 : 3);
         correctCount = 0;
-    } else { // Infinite
+    } else { // INFINITE
         m2 = m1;
         b2 = b1;
         correctCount = Infinity;
     }
 
+    // Formatting (No 1x)
     const formatLine = (m, b) => {
         let mPart = (m === 1) ? "x" : (m === -1) ? "-x" : m + "x";
         if (b === 0) return "y = " + mPart;
         return `y = ${mPart} ${b >= 0 ? '+ ' + b : '- ' + Math.abs(b)}`;
     };
 
+    // PEER LOGIC: Physically verify if point works in BOTH equations
+    const verify = (x, y) => {
+        const check1 = (y === (m1 * x + b1));
+        const check2 = (y === (m2 * x + b2));
+        return check1 && check2;
+    };
+
+    const girlCoords = { x: tx, y: ty };
+    const boyCoords = { x: tx + 1, y: ty + 1 };
+
     currentSystem = {
         m1, b1, m2, b2,
-        correctCount: correctCount,
-        girl: { name: "Elena", x: 0, y: b1, isCorrect: true }, // Simple y-intercept check
-        boy: { name: "Liam", x: 1, y: m1 + b1 + 1, isCorrect: (systemType === 2) },
+        correctCount,
+        girl: { name: "Elena", x: girlCoords.x, y: girlCoords.y, isCorrect: verify(girlCoords.x, girlCoords.y) },
+        boy: { name: "Liam", x: boyCoords.x, y: boyCoords.y, isCorrect: verify(boyCoords.x, boyCoords.y) },
         eq1Disp: formatLine(m1, b1),
         eq2Disp: formatLine(m2, b2)
     };
@@ -71,11 +80,11 @@ function renderLinearUI() {
         </div>`;
 
     if (currentStep === 1) {
-        html += `<p>Step 1: Elena thinks (0, ${currentSystem.b1}) is a solution. Correct?</p>
+        html += `<p>Step 1: ${currentSystem.girl.name} thinks (${currentSystem.girl.x}, ${currentSystem.girl.y}) is a solution. Correct?</p>
             <button class="primary-btn" onclick="checkPeer(true, 'girl')">Yes</button>
             <button class="secondary-btn" onclick="checkPeer(false, 'girl')">No</button>`;
     } else if (currentStep === 2) {
-        html += `<p>Step 2: Liam thinks (1, ${currentSystem.m1 + currentSystem.b1 + 1}) is a solution. Correct?</p>
+        html += `<p>Step 2: ${currentSystem.boy.name} thinks (${currentSystem.boy.x}, ${currentSystem.boy.y}) is a solution. Correct?</p>
             <button class="primary-btn" onclick="checkPeer(true, 'boy')">Yes</button>
             <button class="secondary-btn" onclick="checkPeer(false, 'boy')">No</button>`;
     } else if (currentStep === 3) {
@@ -99,7 +108,7 @@ window.checkPeer = function(choice, peerKey) {
         renderLinearUI();
     } else {
         linearErrorCount++;
-        alert("Check the math! Plug the x into the equation.");
+        alert("Incorrect. To be a solution, it must work in BOTH equations!");
     }
 };
 
@@ -109,7 +118,7 @@ window.checkSolutionCount = function(count) {
         renderLinearUI();
     } else {
         linearErrorCount++;
-        alert("Look at the slopes!");
+        alert("Check your slopes and intercepts!");
     }
 };
 
@@ -129,10 +138,7 @@ function initCanvas() {
         ctx.beginPath(); ctx.moveTo(150,0); ctx.lineTo(150,300); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0,150); ctx.lineTo(300,150); ctx.stroke();
         
-        // --- REDRAW PERSISTENT LINE 1 ---
-        if (userPoints.length >= 2) {
-            renderStoredLine(userPoints[0], userPoints[1], "blue");
-        }
+        if (userPoints.length >= 2) renderStoredLine(userPoints[0], userPoints[1], "blue");
     }
 
     function renderStoredLine(p1, p2, color) {
@@ -142,7 +148,6 @@ function initCanvas() {
         ctx.moveTo(150 + (p1.x-10)*step, 150 - (p1.y + um*(p1.x-10 - p1.x))*step);
         ctx.lineTo(150 + (p1.x+10)*step, 150 - (p1.y + um*(p1.x+10 - p1.x))*step);
         ctx.stroke();
-        // Dots
         ctx.fillStyle = color;
         ctx.beginPath(); ctx.arc(150+p1.x*step, 150-p1.y*step, 5, 0, 7); ctx.fill();
         ctx.beginPath(); ctx.arc(150+p2.x*step, 150-p2.y*step, 5, 0, 7); ctx.fill();
@@ -154,16 +159,11 @@ function initCanvas() {
         const rect = canvas.getBoundingClientRect();
         const gx = Math.round((e.clientX - rect.left - 150) / step);
         const gy = Math.round((150 - (e.clientY - rect.top)) / step);
-        
         userPoints.push({x: gx, y: gy});
-        
-        // Temporary dot for current action
         ctx.fillStyle = userPoints.length <= 2 ? "blue" : "red";
         ctx.beginPath(); ctx.arc(150 + gx*step, 150 - gy*step, 5, 0, 7); ctx.fill();
-
         if (userPoints.length === 2) validateLine(1);
         if (userPoints.length === 4) validateLine(2);
-        
         const status = document.getElementById('graph-status');
         const msgs = ["Line 1: Pt 1", "Line 1: Pt 2", "Line 2: Pt 1", "Line 2: Pt 2", "Success!"];
         if(status) status.innerText = msgs[userPoints.length] || "Success!";
@@ -174,17 +174,15 @@ function initCanvas() {
         const p2 = userPoints[num === 1 ? 1 : 3];
         const m = num === 1 ? currentSystem.m1 : currentSystem.m2;
         const b = num === 1 ? currentSystem.b1 : currentSystem.b2;
-        
         const um = (p2.y - p1.y) / (p2.x - p1.x);
         const ub = p1.y - (um * p1.x);
 
         if (um === m && Math.abs(ub - b) < 0.1) {
-            drawGrid(); // This will now persistently draw Line 1
+            drawGrid();
             if (num === 2) finalize();
         } else {
             linearErrorCount++;
-            alert("Line " + num + " is incorrect. Check your slope and intercept.");
-            // If line 2 fails, keep points 0 and 1 (Line 1) but clear points 2 and 3
+            alert("Incorrect line.");
             userPoints = (num === 1) ? [] : [userPoints[0], userPoints[1]];
             drawGrid();
         }
