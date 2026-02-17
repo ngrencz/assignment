@@ -128,30 +128,27 @@ async function checkSolveX() {
     const correctAns = currentEquations[problemsSolved].ans;
     const feedback = document.getElementById('feedback-box');
 
-    // 1. Validation: Don't do anything if input is empty
     if (isNaN(userAns)) return;
     feedback.style.display = "block";
 
-    // 2. Accuracy Check: Using your 0.01 tolerance for decimals
     if (Math.abs(userAns - correctAns) < 0.01) {
         problemsSolved++;
         feedback.className = "correct";
         feedback.innerText = "Correct! Excellent work.";
 
-        // 3. Check if the SET is finished
-       if (problemsSolved >= problemsNeeded) {
+        // --- SECTION A: THE SET IS FINISHED ---
+        if (problemsSolved >= problemsNeeded) {
             window.isCurrentQActive = false; // Stop timer
 
             let adjustment = 0;
             if (solveXErrorCount === 0) {
-                adjustment = 1;  // Move up
+                adjustment = 1;  
             } else if (solveXErrorCount >= 3) {
-                adjustment = -1; // Move down (needs more practice)
+                adjustment = -1; 
             } else {
-                adjustment = 0;  // Stay put (neutral)
+                adjustment = 0;  
             }
 
-            // Calculate new integer score (capped 0-10)
             let newScore = Math.max(0, Math.min(10, currentScore + adjustment));
             
             if (typeof log === 'function') {
@@ -164,10 +161,18 @@ async function checkSolveX() {
                 .eq('userName', window.currentUser);
             
             feedback.innerText = adjustment > 0 ? "Mastery Increasing!" : (adjustment < 0 ? "Keep practicing!" : "Set Complete.");
+            
+            // Go back to the Hub for a new skill
             setTimeout(() => { loadNextQuestion(); }, 1500);
+
+        } else {
+            // --- SECTION B: THE SET IS NOT FINISHED ---
+            // Just load the next equation in this same module
+            setTimeout(renderSolveXUI, 1200);
         }
+
     } else {
-        // 7. Error Handling
+        // --- SECTION C: WRONG ANSWER ---
         solveXErrorCount++;
         feedback.className = "incorrect";
         feedback.innerText = "Check your calculations. Remember to apply the same operation to both sides!";
