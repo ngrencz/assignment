@@ -1,6 +1,6 @@
 /**
- * Transformation Geometry Game - V4
- * Fixes: Edit function, Undo logic, and Button Contrast.
+ * Transformation Geometry Game - V5
+ * Features: Vertex Coordinate Tracking, Decimal Translations, and Manual Dilation.
  */
 
 // Global State
@@ -110,9 +110,19 @@ function renderUI() {
     document.getElementById('q-title').innerText = `Transformations (Round ${currentRound}/3)`;
     
     qContent.innerHTML = `
-        <div style="display: flex; justify-content: center; margin-bottom: 10px; position:relative;">
-            <canvas id="gridCanvas" width="440" height="440" style="background: white; border-radius: 8px; border: 1px solid #94a3b8; cursor: crosshair;"></canvas>
-            <div id="coord-tip" style="position:absolute; bottom:10px; right:10px; background:rgba(15, 23, 42, 0.8); color:white; padding:4px 10px; border-radius:4px; font-family:monospace; font-size:11px; pointer-events:none;">(0, 0)</div>
+        <div style="display: flex; gap: 15px; align-items: flex-start; margin-bottom: 10px;">
+            <div style="position:relative;">
+                <canvas id="gridCanvas" width="440" height="440" style="background: white; border-radius: 8px; border: 1px solid #94a3b8; cursor: crosshair;"></canvas>
+                <div id="coord-tip" style="position:absolute; bottom:10px; right:10px; background:rgba(15, 23, 42, 0.8); color:white; padding:4px 10px; border-radius:4px; font-family:monospace; font-size:11px; pointer-events:none;">(0, 0)</div>
+            </div>
+            
+            <div id="vertex-list" style="flex: 1; background: #f1f5f9; padding: 12px; border-radius: 8px; font-size: 11px; font-family: monospace; border: 1px solid #e2e8f0; max-height: 440px; overflow-y: auto;">
+                <h4 style="margin: 0 0 8px 0; color: #1e293b;">Vertex Coordinates</h4>
+                <div style="color: #15803d; font-weight: bold; margin-bottom: 4px;">Current Shape (Green)</div>
+                <div id="current-coords" style="margin-bottom: 12px;"></div>
+                <div style="color: #64748b; font-weight: bold; margin-bottom: 4px;">Target Shape (Ghost)</div>
+                <div id="target-coords"></div>
+            </div>
         </div>
         
         <div id="user-sequence" style="min-height:45px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px; margin-bottom:12px; display:flex; flex-wrap:wrap; gap:6px;">
@@ -121,7 +131,7 @@ function renderUI() {
                     <div onclick="${isAnimating ? '' : `editStep(${i})`}" style="padding:4px 8px; cursor:pointer;">${i+1}. ${formatMove(m)}</div>
                     <div onclick="${isAnimating ? '' : `undoTo(${i})`}" style="padding:4px 6px; background:rgba(255,255,255,0.1); cursor:pointer; border-left:1px solid rgba(255,255,255,0.1);">✕</div>
                 </div>`).join('')}
-            ${moveSequence.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">Add a move...</span>' : ''}
+            ${moveSequence.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">Add a move to start...</span>' : ''}
         </div>
 
         <div id="control-panel" style="background:#fff; border:1px solid #e2e8f0; padding:12px; border-radius:10px; display:grid; grid-template-columns: 1fr 1fr; gap:10px; pointer-events: ${isAnimating ? 'none' : 'auto'}; opacity: ${isAnimating ? 0.7 : 1};">
@@ -145,7 +155,17 @@ function renderUI() {
 
     setupCanvas();
     updateSubInputs(); 
+    updateCoordinateList();
     draw(currentShape); 
+}
+
+function updateCoordinateList() {
+    const curDiv = document.getElementById('current-coords');
+    const tarDiv = document.getElementById('target-coords');
+    if (!curDiv || !tarDiv) return;
+
+    curDiv.innerHTML = currentShape.map(p => `(${p[0].toFixed(2)}, ${p[1].toFixed(2)})`).join('<br>');
+    tarDiv.innerHTML = targetShape.map(p => `(${p[0].toFixed(2)}, ${p[1].toFixed(2)})`).join('<br>');
 }
 
 function formatMove(m) {
@@ -174,9 +194,10 @@ window.updateSubInputs = function() {
     let existing = (editingIndex !== -1) ? moveSequence[editingIndex] : null;
 
     if (val === 'translation') {
+        // Step set to 0.25 to allow precise decimal movement
         container.innerHTML = `
-            X: <input type="number" id="dx" value="${existing?.dx || 0}" style="width:70px; height:35px; text-align:center;">
-            Y: <input type="number" id="dy" value="${existing?.dy || 0}" style="width:70px; height:35px; text-align:center;">`;
+            X: <input type="number" id="dx" step="0.25" value="${existing?.dx || 0}" style="width:75px; height:35px; text-align:center;">
+            Y: <input type="number" id="dy" step="0.25" value="${existing?.dy || 0}" style="width:75px; height:35px; text-align:center;">`;
     } else if (val === 'rotate') {
         container.innerHTML = `
             <select id="rot-deg" style="height:35px;">
@@ -192,25 +213,12 @@ window.updateSubInputs = function() {
     } else container.innerHTML = "";
 }
 
-window.editStep = function(i) {
-    editingIndex = i;
-    const move = moveSequence[i];
-    renderUI();
-    document.getElementById('move-selector').value = move.type;
-    updateSubInputs();
-};
-
-window.cancelEdit = function() {
-    editingIndex = -1;
-    renderUI();
-};
-
 window.executeAction = async function() {
     const type = document.getElementById('move-selector').value;
     let m = { type };
     if (type === 'translation') {
-        m.dx = parseInt(document.getElementById('dx').value) || 0;
-        m.dy = parseInt(document.getElementById('dy').value) || 0;
+        m.dx = parseFloat(document.getElementById('dx').value) || 0;
+        m.dy = parseFloat(document.getElementById('dy').value) || 0;
     } else if (type === 'rotate') {
         m.deg = parseInt(document.getElementById('rot-deg').value);
         m.dir = document.getElementById('rot-dir').value;
@@ -226,6 +234,7 @@ window.executeAction = async function() {
         editingIndex = -1;
         await replayAll();
     }
+    updateCoordinateList();
     renderUI();
 };
 
@@ -258,7 +267,6 @@ async function replayAll() {
 }
 
 window.undoTo = function(i) {
-    // Remove selected step and everything after it
     moveSequence.splice(i);
     replayAll().then(() => renderUI());
 };
@@ -288,11 +296,9 @@ function draw(pts) {
         ctx.fillText(i, center - 10, center - (i * step) + 3);
     }
 
-    // Ghost Target
     ctx.setLineDash([4,2]); ctx.strokeStyle="rgba(0,0,0,0.2)"; ctx.fillStyle="rgba(0,0,0,0.03)";
     drawShape(ctx, targetShape, center, step);
 
-    // Current Shape
     ctx.setLineDash([]); ctx.strokeStyle="#15803d"; ctx.fillStyle="rgba(34, 197, 94, 0.6)"; 
     drawShape(ctx, pts, center, step);
 }
