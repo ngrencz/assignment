@@ -6,7 +6,7 @@
     <title>6.2.4 System Debugger</title>
     
     <script>
-        const APP_VERSION = "1.0.13"; 
+        const APP_VERSION = "1.0.12"; 
         const LAST_UPDATED = "2026-02-16 19:15"; 
     </script>
 
@@ -144,12 +144,17 @@
 
         async function ensureTestUser() {
     log("Connecting...");
-    const { data, error } = await supabaseClient
-        .from('assignment')
-        .select('*')
-        .eq('userName', 'test_user')
-        .maybeSingle();
+    // Use window.supabaseClient to prevent "ReferenceError"
+    const client = window.supabaseClient; 
+    
+    if (!client) {
+        log("Waiting for connection...");
+        // Retry in 500ms if not ready yet
+        setTimeout(ensureTestUser, 500);
+        return;
+    }
 
+    const { data, error } = await client.from('assignment').select('*').eq('userName', 'test_user').maybeSingle();
     if (data) syncSliders(data);
 }
 
