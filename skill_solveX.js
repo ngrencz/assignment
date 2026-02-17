@@ -128,28 +128,51 @@ async function checkSolveX() {
     const correctAns = currentEquations[problemsSolved].ans;
     const feedback = document.getElementById('feedback-box');
 
+    // 1. Validation: Don't do anything if input is empty
     if (isNaN(userAns)) return;
     feedback.style.display = "block";
 
-    // Check with tolerance for decimals
+    // 2. Accuracy Check: Using your 0.01 tolerance for decimals
     if (Math.abs(userAns - correctAns) < 0.01) {
         problemsSolved++;
         feedback.className = "correct";
         feedback.innerText = "Correct! Excellent work.";
 
+        // 3. Check if the SET is finished
         if (problemsSolved >= problemsNeeded) {
-            // Scoring: 10 base, minus 1 per error, floor at 1
-            let newScore = Math.max(1, 10 - solveXErrorCount);
+            window.isCurrentQActive = false; // Stop timer immediately
+
+            // 4. Meaningful Growth Logic (The XP System)
+            // Perfect set = 1.2 pts, 1-2 errors = 0.6 pts, 3+ errors = 0.2 pts
+            let earnedXP = 0;
+            if (solveXErrorCount === 0) earnedXP = 1.2;
+            else if (solveXErrorCount <= 2) earnedXP = 0.6;
+            else earnedXP = 0.2;
+
+            // currentScore was defined at the top of your script during init
+            let newScore = Math.min(10, currentScore + earnedXP);
+            
+            // Log to your Dev Panel so you can see the math happening
+            if (typeof log === 'function') {
+                log(`Algebra XP: ${currentScore} + ${earnedXP} = ${newScore.toFixed(1)}`);
+            }
+
+            // 5. Save to Supabase
             await window.supabaseClient
                 .from('assignment')
-                .update({ SolveX: newScore })
+                .update({ SolveX: parseFloat(newScore.toFixed(1)) })
                 .eq('userName', window.currentUser);
             
-            setTimeout(() => { loadNextQuestion(); }, 1200);
+            feedback.innerText = `Set Complete! Mastery: ${newScore.toFixed(1)}/10`;
+            
+            // 6. Transition back to the Hub
+            setTimeout(() => { loadNextQuestion(); }, 1500);
         } else {
+            // Not finished with the set yet? Load the next equation
             setTimeout(renderSolveXUI, 1200);
         }
     } else {
+        // 7. Error Handling
         solveXErrorCount++;
         feedback.className = "incorrect";
         feedback.innerText = "Check your calculations. Remember to apply the same operation to both sides!";
