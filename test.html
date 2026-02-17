@@ -6,11 +6,12 @@
     <title>6.2.4 System Debugger</title>
     
     <script>
-        const APP_VERSION = "1.0.16"; 
-        const LAST_UPDATED = "2026-02-16 19:15"; 
+        const APP_VERSION = "1.0.14"; 
+        const LAST_UPDATED = "2026-02-16"; 
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <script src="skill_transformation.js"></script>
     <script src="skill_linearsystem.js"></script>
     <script src="skill_figuregrowth.js"></script>
@@ -29,7 +30,8 @@
         input[type="range"] { width: 100%; accent-color: #4CBB17; cursor: pointer; }
         button { cursor: pointer; transition: opacity 0.2s; font-weight: bold; }
         button:hover { opacity: 0.8; }
-    </style>
+        .accent-text { color: #4CBB17; }
+    </script>
 </head>
 <body>
 
@@ -67,7 +69,6 @@
 
             <div class="card">
                 <h3>2. Adaptive Routing (Sliders)</h3>
-                <p><small style="color:#64748b;">Adjust and click Apply to test student flow.</small></p>
                 <div style="display: grid; gap: 12px; margin-top: 15px;">
                     <div><label style="display:flex; justify-content:space-between; font-size: 13px;">SolveX <span id="v-SolveX">0</span></label><input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')"></div>
                     <div><label style="display:flex; justify-content:space-between; font-size: 13px;">BoxPlot <span id="v-BoxPlot">0</span></label><input type="range" id="s-BoxPlot" min="0" max="10" value="0" oninput="updateVal('BoxPlot')"></div>
@@ -75,7 +76,6 @@
                     <div><label style="display:flex; justify-content:space-between; font-size: 13px;">FigureGrowth <span id="v-FigureGrowth">0</span></label><input type="range" id="s-FigureGrowth" min="0" max="10" value="0" oninput="updateVal('FigureGrowth')"></div>
                     <div><label style="display:flex; justify-content:space-between; font-size: 13px;">Transformations <span id="v-C6Transformation">0</span></label><input type="range" id="s-C6Transformation" min="0" max="10" value="0" oninput="updateVal('C6Transformation')"></div>
                 </div>
-                <button onclick="applyScoresAndRoute()" style="width:100%; margin-top:20px; background:#000; color:#fff; padding: 15px; border-radius: 8px; border: none;">Apply Scores & Launch Hub Flow</button>
             </div>
         </div>
 
@@ -86,8 +86,7 @@
                 
                 <div id="work-area" style="margin-top:20px; border-top: 2px solid #f1f5f9; padding-top:20px;">
                     <h2 id="q-title" style="font-size: 1.1rem; color: #1e293b;">Question Preview:</h2>
-                    <div id="q-content" style="min-height: 100px;"><em>The selected math game will render here.</em></div>
-                    <div id="feedback-box" style="display:none; margin-top:15px; padding:15px; border-radius:8px;"></div>
+                    <div id="q-content" style="min-height: 100px;"><em>Select a game and click Force Launch.</em></div>
                 </div>
             </div>
         </div>
@@ -97,7 +96,6 @@
 
     <script>
         window.currentUser = 'test_user';
-        window.targetLesson = '6.2.4';
         
         function log(msg) {
             const l = document.getElementById('log');
@@ -107,34 +105,13 @@
             }
         }
 
-        function forceLoadModule() {
-            const targetId = document.getElementById('module-selector').value;
-            log(`🛠️ Dev Bypass: Launching ${targetId}`);
-
-            const forceMap = {
-                'C6Transformation': typeof initTransformationGame !== 'undefined' ? initTransformationGame : null,
-                'LinearSystem': typeof initLinearSystemGame !== 'undefined' ? initLinearSystemGame : null,
-                'FigureGrowth': typeof initFigureGrowthGame !== 'undefined' ? initFigureGrowthGame : null,
-                'SolveX': typeof initSolveXGame !== 'undefined' ? initSolveXGame : null,
-                'BoxPlot': typeof initBoxPlotGame !== 'undefined' ? initBoxPlotGame : null
-            };
-
-            const targetFn = forceMap[targetId];
-            if (targetFn) {
-                window.hasDonePrimaryLesson = true; // Tell hub we finished transformations
-                window.isCurrentQActive = true;
-                targetFn();
-            } else {
-                log(`❌ Error: ${targetId} function missing.`);
-            }
-        }
-
         function updateVal(id) {
             const val = document.getElementById('s-' + id).value;
-            document.getElementById('v-' + id).innerText = val;
+            const display = document.getElementById('v-' + id);
+            if(display) display.innerText = val;
         }
 
-       function syncSliders(data) {
+        function syncSliders(data) {
             const skills = ['SolveX', 'BoxPlot', 'LinearSystem', 'FigureGrowth', 'C6Transformation'];
             skills.forEach(s => {
                 const slider = document.getElementById('s-' + s);
@@ -145,11 +122,11 @@
             });
         }
 
-        // 2. The main Sync Function (Fixed Syntax)
-        async function ensureTestUser() { 
-            log("Connecting...");
+        async function ensureTestUser() {
+            log("Connecting to Supabase...");
             try {
-                const { data, error } = await supabaseClient
+                // We use window.supabaseClient because assignment_hub.js defines it
+                const { data, error } = await window.supabaseClient
                     .from('assignment')
                     .select('*')
                     .eq('userName', 'test_user')
@@ -158,24 +135,46 @@
                 if (error) throw error;
                 if (data) {
                     syncSliders(data);
-                    log("✅ Data synced from Supabase.");
+                    log("✅ test_user data synced.");
                 } else {
-                    log("ℹ️ No data found for 'test_user'.");
+                    log("ℹ️ No record for test_user found.");
                 }
             } catch (err) {
                 log("❌ Connection Error: " + err.message);
             }
         }
 
-        // 3. Reset Session
         async function resetSession() {
             if (!confirm("Wipe all mastery data for test_user?")) return;
             log("🗑️ Wiping data...");
             const zeros = { SolveX: 0, BoxPlot: 0, LinearSystem: 0, FigureGrowth: 0, C6Transformation: 0 };
-            await supabaseClient.from('assignment').update(zeros).eq('userName', 'test_user');
+            await window.supabaseClient.from('assignment').update(zeros).eq('userName', 'test_user');
             location.reload(); 
         }
-        ensureTestUser();
+
+        function forceLoadModule() {
+            const targetId = document.getElementById('module-selector').value;
+            log(`🛠️ Launching ${targetId}`);
+
+            const forceMap = {
+                'C6Transformation': window.initTransformationGame,
+                'LinearSystem': window.initLinearSystemGame,
+                'FigureGrowth': window.initFigureGrowthGame,
+                'SolveX': window.initSolveXGame,
+                'BoxPlot': window.initBoxPlotGame
+            };
+
+            const targetFn = forceMap[targetId];
+            if (targetFn) {
+                window.isCurrentQActive = true;
+                targetFn();
+            } else {
+                log(`❌ Error: ${targetId} function missing.`);
+            }
+        }
+
+        // Run sync on load
+        setTimeout(ensureTestUser, 1000); 
     </script>
 </body>
 </html>
