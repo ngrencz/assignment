@@ -1,7 +1,7 @@
-let linearErrorCount = 0;
-let currentStep = 1; 
-let currentSystem = {};
-let userPoints = [];
+var linearErrorCount = 0;
+var currentStep = 1; 
+var currentSystem = {};
+var userPoints = [];
 
 const femaleNames = ["Maya", "Sarah", "Elena", "Chloe", "Amara", "Jasmine"];
 const maleNames = ["Liam", "Noah", "Caleb", "Ethan", "Leo", "Isaac"];
