@@ -134,10 +134,10 @@ function initCanvas() {
         ctx.beginPath(); ctx.moveTo(size/2, 0); ctx.lineTo(size/2, size); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, size/2); ctx.lineTo(size, size/2); ctx.stroke();
         
-        // REDRAWING DOTS AND LINES
-        userPoints.forEach((p, index) => {
-            ctx.fillStyle = index < 2 ? "#3b82f6" : "#ef4444";
-            ctx.beginPath(); ctx.arc(size/2 + p.x*step, size/2 - p.y*step, 5, 0, 7); ctx.fill();
+        // REDRAW DOTS
+        userPoints.forEach((p, idx) => {
+            ctx.fillStyle = idx < 2 ? "#3b82f6" : "#ef4444";
+            ctx.beginPath(); ctx.arc(size/2 + p.x*step, size/2 - p.y*step, 5, 0, Math.PI * 2); ctx.fill();
         });
 
         if (userPoints.length >= 2) renderLine(userPoints[0], userPoints[1], "#3b82f6");
@@ -174,14 +174,18 @@ function initCanvas() {
             if (validate(1)) {
                 if(status) status.innerText = "Line 1 Saved. Line 2: Point 1";
             } else {
-                alert("Point not on Eq 1."); userPoints = []; drawGrid();
+                alert("Incorrect. These points don't satisfy Eq 1."); 
+                userPoints = []; drawGrid();
+                if(status) status.innerText = "Line 1: Plot Point 1";
             }
         } else if (userPoints.length === 4) {
             if (validate(2)) {
-                if(status) status.innerText = "Correct! Finising...";
-                setTimeout(finishGame, 800);
+                if(status) status.innerText = "Correct! Progressing...";
+                setTimeout(finishGame, 600);
             } else {
-                alert("Point not on Eq 2."); userPoints = [userPoints[0], userPoints[1]]; drawGrid();
+                alert("Incorrect. These points don't satisfy Eq 2."); 
+                userPoints = [userPoints[0], userPoints[1]]; drawGrid();
+                if(status) status.innerText = "Line 2: Plot Point 1";
             }
         } else {
             if(status) status.innerText = userPoints.length === 1 ? "Line 1: Point 2" : "Line 2: Point 2";
@@ -200,27 +204,18 @@ function initCanvas() {
 }
 
 async function finishGame() {
-    const pts = Math.max(1, 10 - linearErrorCount);
-    // FIXING THE 400 ERROR: Ensuring update logic is wrapped in a try/catch and handles data types
     if (window.supabaseClient && window.currentUser) {
         try {
-            const { data, error } = await window.supabaseClient
-                .from('assignment')
-                .update({ LinearSystem: 10 }) // Simplify for test: sending a fixed number
-                .eq('userName', window.currentUser);
-            
-            if (error) console.error("Update Error:", error);
-        } catch(e) { 
-            console.error("Catch Error:", e); 
-        }
+            const { data } = await window.supabaseClient.from('assignment').select('LinearSystem').eq('userName', window.currentUser).single();
+            const currentScore = data?.LinearSystem || 0;
+            // Respecting int2: Only integers, increment by 1
+            await window.supabaseClient.from('assignment').update({ LinearSystem: currentScore + 1 }).eq('userName', window.currentUser);
+        } catch(e) { console.error("Database sync failed:", e); }
     }
     
-    // FORCING NEXT QUESTION REGARDLESS OF DB ERROR
-    console.log("Attempting to load next question...");
     if (typeof window.loadNextQuestion === 'function') {
         window.loadNextQuestion();
     } else {
-        console.log("loadNextQuestion not found, reloading...");
         location.reload();
     }
 }
