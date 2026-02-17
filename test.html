@@ -143,11 +143,25 @@
         }
 
         async function ensureTestUser() { 
-    log("Connecting...");
-    // The "await" below only works if the line above says "async"
-    const { data, error } = await supabaseClient.from('assignment').select('*').eq('userName', 'test_user').maybeSingle();
-    if (data) syncSliders(data);
-}
+            log("Connecting...");
+            try {
+                const { data, error } = await supabaseClient
+                    .from('assignment')
+                    .select('*')
+                    .eq('userName', 'test_user')
+                    .maybeSingle();
+
+                if (error) throw error;
+                if (data) {
+                    syncSliders(data);
+                    log("✅ Data synced from Supabase.");
+                } else {
+                    log("ℹ️ No data found for 'test_user'.");
+                }
+            } catch (err) {
+                log("❌ Connection Error: " + err.message);
+            }
+        }
         async function resetSession() {
     if (!confirm("Wipe all mastery data for test_user?")) return;
     log("🗑️ Wiping data...");
