@@ -111,12 +111,12 @@
         
         hintBox.innerHTML = message;
     };
-
+    
     window.checkFigureAns = async function() {
         let isCorrect = false;
         let stepKey = "";
         const feedback = document.getElementById('feedback-box');
-        feedback.style.display = "block";
+        if (feedback) feedback.style.display = "block";
 
         if (currentStep === 1) {
             stepKey = "FigureRule";
@@ -137,16 +137,27 @@
             feedback.className = "correct";
             feedback.innerText = "✅ Correct!";
             
+            // Wait for the integer-safe database update
             await saveStepData(stepKey, figureErrorCount);
 
             if (currentStep < 3) {
                 currentStep++;
                 figureErrorCount = 0;
+                // Clear the hint box for the next step
+                const hintBox = document.getElementById('hint-display');
+                if (hintBox) hintBox.style.display = "none";
+                
                 setTimeout(renderFigureUI, 1000);
             } else {
                 window.isCurrentQActive = false;
-                feedback.innerText = "Pattern Mastered!";
-                setTimeout(loadNextQuestion, 1500);
+                feedback.innerText = "Pattern Mastered! Loading next...";
+                
+                // IMPORTANT: Use window. to reach the Hub's function
+                if (typeof window.loadNextQuestion === 'function') {
+                    setTimeout(window.loadNextQuestion, 1500);
+                } else {
+                    console.error("Hub function 'loadNextQuestion' not found.");
+                }
             }
         } else {
             figureErrorCount++;
@@ -154,8 +165,6 @@
             feedback.innerText = "Not quite! Look at how much the tile count changes between figures.";
         }
     };
-
-
     async function saveStepData(column, figureErrorCount) {
         // 1. Integer-only adjustment: +1 if perfect, 0 if minor struggle, -1 if 3+ errors
         let adjustment = 0;
