@@ -2,8 +2,8 @@ var linearErrorCount = 0;
 var currentStep = 1; 
 var currentSystem = {};
 var userPoints = [];
-var step1Point = {}; // Stores the point asking about in Step 1
-var step2Point = {}; // Stores the point asking about in Step 2
+var step1Point = {}; 
+var step2Point = {}; 
 
 window.initLinearSystemGame = async function() {
     window.isCurrentQActive = true;
@@ -15,14 +15,12 @@ window.initLinearSystemGame = async function() {
     // --- 1. GENERATE THE SYSTEM ---
     const type = Math.floor(Math.random() * 3); // 0: One Sol, 1: None (Parallel), 2: Infinite
     
-    // Generate a valid integer solution point (tx, ty) to build the math around
-    const tx = Math.floor(Math.random() * 11) - 5; // -5 to 5
+    const tx = Math.floor(Math.random() * 11) - 5; 
     const ty = Math.floor(Math.random() * 11) - 5;
 
-    // Slopes
     const slopes = [-3, -2, -1, 1, 2, 3];
     const m1 = slopes[Math.floor(Math.random() * slopes.length)];
-    const b1 = ty - (m1 * tx); // Calculate b1 based on the target point
+    const b1 = ty - (m1 * tx); 
 
     let m2, b2, correctCount;
 
@@ -34,7 +32,6 @@ window.initLinearSystemGame = async function() {
     } else if (type === 1) { 
         // No Solution (Parallel)
         m2 = m1;
-        // Shift b2 so it's parallel but different
         b2 = b1 + (Math.random() > 0.5 ? 4 : -4); 
         correctCount = 0;
     } else { 
@@ -44,35 +41,40 @@ window.initLinearSystemGame = async function() {
         correctCount = Infinity;
     }
 
-    // --- 2. GENERATE DISPLAY STRINGS (Slope vs Standard) ---
-    // We pass the raw slope/intercept to a helper that randomizes the format
-    const eq1Obj = generateEquationDisplay(m1, b1);
-    const eq2Obj = generateEquationDisplay(m2, b2);
+    // --- 2. GENERATE DISPLAY STRINGS ---
+    let eq1Obj = generateEquationDisplay(m1, b1);
+    let eq2Obj = generateEquationDisplay(m2, b2);
 
-    // --- 3. GENERATE TEST POINTS FOR STEPS 1 & 2 ---
-    // We need 2 points to ask the user about.
-    // They can be the actual solution, or "distractors" (points close to the solution).
-    
+    // FIX: PREVENT IDENTICAL STRINGS
+    // If we have infinite solutions (m1=m2, b1=b2), we must ensure 
+    // we don't show "y = 2x + 1" and "y = 2x + 1".
+    // We re-roll eq2 until the text is different.
+    let safety = 0;
+    while (eq1Obj.text === eq2Obj.text && safety < 20) {
+        eq2Obj = generateEquationDisplay(m2, b2);
+        safety++;
+    }
+
+    // --- 3. GENERATE TEST POINTS ---
     const truePoint = { x: tx, y: ty };
     
-    // Create Distractors (points that are close but wrong)
+    // Distractors
     const distractor1 = { x: tx + (Math.random() > 0.5 ? 1 : -1), y: ty }; 
     const distractor2 = { x: tx, y: ty + (Math.random() > 0.5 ? 1 : -1) };
     const distractor3 = { x: tx + 2, y: ty - 2 };
+    const distractor4 = { x: 0, y: 0 };
 
     let pool = [];
 
     if (type === 1) {
-        // If No Solution, ALL points are False. Just pick random distractors.
-        pool = [distractor1, distractor2, distractor3, {x: 0, y: 0}];
+        // Parallel: No solution exists, so all points are False
+        pool = [distractor1, distractor2, distractor3, distractor4];
     } else {
-        // Valid Solution or Infinite: We mix correct answers and wrong answers
-        // This allows for (True/True), (True/False), (False/True), or (False/False)
-        // We add the true point twice to the pool to increase odds of it appearing
+        // One or Infinite: We mix the True point with False points
         pool = [truePoint, truePoint, distractor1, distractor2, distractor3];
     }
 
-    // Randomly select two distinct points from the pool
+    // Select unique points for Step 1 and Step 2
     step1Point = pool[Math.floor(Math.random() * pool.length)];
     do {
         step2Point = pool[Math.floor(Math.random() * pool.length)];
@@ -85,7 +87,6 @@ window.initLinearSystemGame = async function() {
         correctCount,
         eq1Disp: eq1Obj.text,
         eq2Disp: eq2Obj.text,
-        // Store simple forms for the Hint at the end
         s1: `y = ${m1}x ${b1 >= 0 ? '+ ' + b1 : '- ' + Math.abs(b1)}`,
         s2: `y = ${m2}x ${b2 >= 0 ? '+ ' + b2 : '- ' + Math.abs(b2)}`
     };
@@ -93,9 +94,8 @@ window.initLinearSystemGame = async function() {
     renderLinearUI();
 };
 
-// Helper: Randomly formats an equation as "y = mx + b" OR "Ax + By = C"
 function generateEquationDisplay(m, b) {
-    const isStandard = Math.random() > 0.5; // 50/50 chance
+    const isStandard = Math.random() > 0.5; 
 
     if (!isStandard) {
         // Slope Intercept Form
@@ -104,24 +104,19 @@ function generateEquationDisplay(m, b) {
         return { text: `y = ${mPart}${bPart}` };
     } else {
         // Standard Form: Ax + By = C
-        // Derived from y = mx + b  ->  -mx + y = b
-        // We multiply by -1 to make x positive usually: mx - y = -b
-        
         let A = m;
         let B = -1;
         let C = -b;
 
-        // Spice it up: Multiply entire equation by 1, 2, or 3 for variety
+        // Multiply by 1, 2, or 3 for variety (e.g. 2x - y = 1 vs 4x - 2y = 2)
         let mult = Math.floor(Math.random() * 3) + 1; 
         A *= mult;
         B *= mult;
         C *= mult;
 
-        // Formatting A
         let A_str = (A === 1) ? "x" : (A === -1) ? "-x" : `${A}x`;
-        if (A === 0) A_str = ""; // Rare if slope is 0
+        if (A === 0) A_str = ""; 
 
-        // Formatting B
         let B_str = "";
         if (B < 0) B_str = ` - ${Math.abs(B)}y`;
         else B_str = ` + ${B}y`;
@@ -183,7 +178,6 @@ function renderLinearUI() {
     if (currentStep === 4) initCanvas();
 }
 
-// Logic to check if the user's Yes/No answer matches the math
 window.handleStep = function(userSaidYes) {
     const p = (currentStep === 1) ? step1Point : step2Point;
     
@@ -195,7 +189,7 @@ window.handleStep = function(userSaidYes) {
     const val2 = (currentSystem.m2 * p.x) + currentSystem.b2;
     const eq2Works = Math.abs(p.y - val2) < 0.001;
 
-    // Must be true for BOTH to be a solution
+    // Must be true for BOTH
     const isActuallySol = (eq1Works && eq2Works);
 
     if (userSaidYes === isActuallySol) {
@@ -246,7 +240,7 @@ function initCanvas() {
     }
 
     function renderLine(p1, p2, color) {
-        if (p1.x === p2.x) { // Vertical line protection
+        if (p1.x === p2.x) { 
              ctx.strokeStyle = color; ctx.lineWidth = 3;
              ctx.beginPath();
              ctx.moveTo(size/2 + p1.x*step, 0);
@@ -257,7 +251,6 @@ function initCanvas() {
         const m = (p2.y - p1.y) / (p2.x - p1.x);
         ctx.strokeStyle = color; ctx.lineWidth = 3;
         ctx.beginPath();
-        // Calculate Y at X=-15 and X=15 to draw full line across canvas
         ctx.moveTo(size/2 + (-15)*step, size/2 - (p1.y + m*(-15 - p1.x))*step);
         ctx.lineTo(size/2 + (15)*step, size/2 - (p1.y + m*(15 - p1.x))*step);
         ctx.stroke();
@@ -308,9 +301,8 @@ function initCanvas() {
         const p1 = userPoints[n===1?0:2], p2 = userPoints[n===1?1:3];
         const m = n===1?currentSystem.m1:currentSystem.m2;
         const b = n===1?currentSystem.b1:currentSystem.b2;
-        if (p1.x === p2.x && p1.y === p2.y) return false; // Must be different points
+        if (p1.x === p2.x && p1.y === p2.y) return false; 
         
-        // Check if points satisfy y = mx + b
         const check1 = Math.abs(p1.y - (m * p1.x + b)) < 0.01;
         const check2 = Math.abs(p2.y - (m * p2.x + b)) < 0.01;
         return (check1 && check2);
@@ -332,7 +324,6 @@ async function finishGame() {
 
             let currentScore = data ? (data.LinearSystem || 0) : 0;
             
-            // Score Update Logic
             let adjustment = 0;
             if (linearErrorCount === 0) adjustment = 1;
             else if (linearErrorCount >= 2) adjustment = -1;
