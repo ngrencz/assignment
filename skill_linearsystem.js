@@ -10,27 +10,29 @@ window.initLinearSystemGame = async function() {
     currentStep = 1;
     userPoints = [];
 
-    // --- BETTER RANDOMIZATION ENGINE ---
     // 0 = One, 1 = None, 2 = Infinite
     const systemType = Math.floor(Math.random() * 3);
     
-    // Wider range for variety: -5 to 5
-    const tx = Math.floor(Math.random() * 11) - 5; 
-    const ty = Math.floor(Math.random() * 11) - 5; 
-    
-    const possibleSlopes = [-4, -3, -2, -1, 1, 2, 3, 4];
+    // --- CONSTRAINED RANDOMIZER ---
+    // We limit slopes and intercepts so lines ALWAYS fit on a 10x10 grid
+    const possibleSlopes = [-2, -1, 1, 2]; 
     let m1 = possibleSlopes[Math.floor(Math.random() * possibleSlopes.length)];
-    let b1 = ty - (m1 * tx);
+    
+    // Ensure b is between -4 and 4 so it's clearly visible
+    let b1 = Math.floor(Math.random() * 9) - 4; 
     
     let m2, b2, correctCount;
 
     if (systemType === 0) { // One Solution
         do { m2 = possibleSlopes[Math.floor(Math.random() * possibleSlopes.length)]; } while (m1 === m2);
+        // Calculate b2 so it intersects at an integer point within the grid
+        let tx = Math.floor(Math.random() * 7) - 3; 
+        let ty = m1 * tx + b1;
         b2 = ty - (m2 * tx);
         correctCount = 1;
     } else if (systemType === 1) { // No Solution
         m2 = m1;
-        b2 = b1 + (Math.random() > 0.5 ? 2 : -2);
+        b2 = b1 + (b1 > 0 ? -3 : 3); // Shift intercept significantly
         correctCount = 0;
     } else { // Infinite
         m2 = m1;
@@ -38,27 +40,17 @@ window.initLinearSystemGame = async function() {
         correctCount = Infinity;
     }
 
-    // --- THE "NO 1x" FORMATTING LOGIC ---
     const formatLine = (m, b) => {
-        let mPart = "";
-        if (m === 1) mPart = "x";
-        else if (m === -1) mPart = "-x";
-        else mPart = m + "x";
-
+        let mPart = (m === 1) ? "x" : (m === -1) ? "-x" : m + "x";
         if (b === 0) return "y = " + mPart;
-        let bPart = b > 0 ? " + " + b : " - " + Math.abs(b);
-        return "y = " + mPart + bPart;
+        return `y = ${mPart} ${b >= 0 ? '+ ' + b : '- ' + Math.abs(b)}`;
     };
-
-    const femaleNames = ["Maya", "Sarah", "Elena", "Chloe", "Amara", "Jasmine"];
-    const maleNames = ["Liam", "Noah", "Caleb", "Ethan", "Leo", "Isaac"];
 
     currentSystem = {
         m1, b1, m2, b2,
-        targetX: tx, targetY: ty,
         correctCount: correctCount,
-        girl: { name: femaleNames[Math.floor(Math.random() * 6)], x: tx, y: ty, isCorrect: (systemType !== 1) },
-        boy: { name: maleNames[Math.floor(Math.random() * 6)], x: tx + 1, y: ty - 1, isCorrect: (systemType === 2) },
+        girl: { name: "Elena", x: 0, y: b1, isCorrect: true }, // Simple y-intercept check
+        boy: { name: "Liam", x: 1, y: m1 + b1 + 1, isCorrect: (systemType === 2) },
         eq1Disp: formatLine(m1, b1),
         eq2Disp: formatLine(m2, b2)
     };
@@ -73,30 +65,28 @@ function renderLinearUI() {
     let html = `
         <div style="background:#f8fafc; padding:15px; border-radius:12px; margin-bottom:15px; border: 1px solid #e2e8f0; text-align:center;">
             <p style="font-family:monospace; font-size:1.2rem; margin:0;">
-                1: <strong>${currentSystem.eq1Disp}</strong><br>
-                2: <strong>${currentSystem.eq2Disp}</strong>
+                Line 1: <strong>${currentSystem.eq1Disp}</strong><br>
+                Line 2: <strong>${currentSystem.eq2Disp}</strong>
             </p>
         </div>`;
 
     if (currentStep === 1) {
-        html += `<p>Step 1: ${currentSystem.girl.name} thinks the solution is (${currentSystem.girl.x}, ${currentSystem.girl.y}). Correct?</p>
+        html += `<p>Step 1: Elena thinks (0, ${currentSystem.b1}) is a solution. Correct?</p>
             <button class="primary-btn" onclick="checkPeer(true, 'girl')">Yes</button>
             <button class="secondary-btn" onclick="checkPeer(false, 'girl')">No</button>`;
     } else if (currentStep === 2) {
-        html += `<p>Step 2: ${currentSystem.boy.name} thinks the solution is (${currentSystem.boy.x}, ${currentSystem.boy.y}). Correct?</p>
+        html += `<p>Step 2: Liam thinks (1, ${currentSystem.m1 + currentSystem.b1 + 1}) is a solution. Correct?</p>
             <button class="primary-btn" onclick="checkPeer(true, 'boy')">Yes</button>
             <button class="secondary-btn" onclick="checkPeer(false, 'boy')">No</button>`;
     } else if (currentStep === 3) {
-        html += `<p>Step 3: How many solutions does this system have?</p>
-            <div style="display: flex; flex-direction: column; gap: 5px;">
-                <button class="primary-btn" onclick="checkSolutionCount(1)">Exactly One</button>
-                <button class="primary-btn" onclick="checkSolutionCount(0)">Zero (Parallel)</button>
-                <button class="primary-btn" onclick="checkSolutionCount(Infinity)">Infinite (Same Line)</button>
-            </div>`;
+        html += `<p>Step 3: How many solutions?</p>
+            <button class="primary-btn" onclick="checkSolutionCount(1)">One</button>
+            <button class="primary-btn" onclick="checkSolutionCount(0)">None</button>
+            <button class="primary-btn" onclick="checkSolutionCount(Infinity)">Infinite</button>`;
     } else {
-        html += `<p>Step 4: Graph the lines. Click twice for each line.</p>
-            <canvas id="systemCanvas" width="300" height="300" style="background:white; border:1px solid #ccc; cursor:crosshair;"></canvas>
-            <div id="graph-status" style="margin-top:5px; color:#3b82f6; font-weight:bold;">Line 1: Plot Point 1</div>`;
+        html += `<p>Step 4: Graph both lines.</p>
+            <canvas id="systemCanvas" width="300" height="300" style="background:white; border:1px solid #333; cursor:crosshair; display:block; margin:0 auto;"></canvas>
+            <div id="graph-status" style="margin-top:5px; text-align:center; color:#3b82f6; font-weight:bold;">Line 1: Plot Point 1</div>`;
     }
 
     qContent.innerHTML = html;
@@ -109,7 +99,7 @@ window.checkPeer = function(choice, peerKey) {
         renderLinearUI();
     } else {
         linearErrorCount++;
-        alert("Incorrect check. Verify the coordinates in both equations!");
+        alert("Check the math! Plug the x into the equation.");
     }
 };
 
@@ -119,11 +109,9 @@ window.checkSolutionCount = function(count) {
         renderLinearUI();
     } else {
         linearErrorCount++;
-        alert("Check your slopes! If slopes are equal, it's either 0 or Infinite.");
+        alert("Look at the slopes!");
     }
 };
-
-// --- CANVAS & FINALIZE (Standard Long Version) ---
 
 function initCanvas() {
     const canvas = document.getElementById('systemCanvas');
@@ -137,20 +125,41 @@ function initCanvas() {
             ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,300); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(300,i); ctx.stroke();
         }
-        ctx.strokeStyle = "#000";
+        ctx.strokeStyle = "#000"; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(150,0); ctx.lineTo(150,300); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0,150); ctx.lineTo(300,150); ctx.stroke();
+        
+        // --- REDRAW PERSISTENT LINE 1 ---
+        if (userPoints.length >= 2) {
+            renderStoredLine(userPoints[0], userPoints[1], "blue");
+        }
     }
+
+    function renderStoredLine(p1, p2, color) {
+        const um = (p2.y - p1.y) / (p2.x - p1.x);
+        ctx.strokeStyle = color; ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(150 + (p1.x-10)*step, 150 - (p1.y + um*(p1.x-10 - p1.x))*step);
+        ctx.lineTo(150 + (p1.x+10)*step, 150 - (p1.y + um*(p1.x+10 - p1.x))*step);
+        ctx.stroke();
+        // Dots
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(150+p1.x*step, 150-p1.y*step, 5, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(150+p2.x*step, 150-p2.y*step, 5, 0, 7); ctx.fill();
+    }
+
     drawGrid();
 
     canvas.onclick = function(e) {
         const rect = canvas.getBoundingClientRect();
-        const x = Math.round((e.clientX - rect.left - 150) / step);
-        const y = Math.round((150 - (e.clientY - rect.top)) / step);
+        const gx = Math.round((e.clientX - rect.left - 150) / step);
+        const gy = Math.round((150 - (e.clientY - rect.top)) / step);
         
-        userPoints.push({x, y});
+        userPoints.push({x: gx, y: gy});
+        
+        // Temporary dot for current action
         ctx.fillStyle = userPoints.length <= 2 ? "blue" : "red";
-        ctx.beginPath(); ctx.arc(150 + x*step, 150 - y*step, 5, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(150 + gx*step, 150 - gy*step, 5, 0, 7); ctx.fill();
 
         if (userPoints.length === 2) validateLine(1);
         if (userPoints.length === 4) validateLine(2);
@@ -170,16 +179,13 @@ function initCanvas() {
         const ub = p1.y - (um * p1.x);
 
         if (um === m && Math.abs(ub - b) < 0.1) {
-            ctx.strokeStyle = num === 1 ? "blue" : "red";
-            ctx.beginPath();
-            ctx.moveTo(150 + (p1.x-10)*step, 150 - (p1.y + um*(p1.x-10 - p1.x))*step);
-            ctx.lineTo(150 + (p1.x+10)*step, 150 - (p1.y + um*(p1.x+10 - p1.x))*step);
-            ctx.stroke();
+            drawGrid(); // This will now persistently draw Line 1
             if (num === 2) finalize();
         } else {
             linearErrorCount++;
-            alert("Incorrect line. Check your slope and intercept.");
-            userPoints = num === 1 ? [] : [userPoints[0], userPoints[1]];
+            alert("Line " + num + " is incorrect. Check your slope and intercept.");
+            // If line 2 fails, keep points 0 and 1 (Line 1) but clear points 2 and 3
+            userPoints = (num === 1) ? [] : [userPoints[0], userPoints[1]];
             drawGrid();
         }
     }
@@ -187,15 +193,8 @@ function initCanvas() {
 
 async function finalize() {
     const sessionScore = Math.max(1, 10 - linearErrorCount);
-    
-    // Fetch and Increment Mastery (Gradual)
     const { data } = await window.supabaseClient.from('assignment').select('LinearSystem').eq('userName', window.currentUser).single();
     const currentM = data?.LinearSystem || 0;
-    const newM = Math.min(10, currentM + (sessionScore / 5));
-
-    await window.supabaseClient.from('assignment').update({ LinearSystem: newM }).eq('userName', window.currentUser);
-    
-    if (typeof window.loadNextQuestion === 'function') {
-        window.loadNextQuestion();
-    }
+    await window.supabaseClient.from('assignment').update({ LinearSystem: Math.min(10, currentM + (sessionScore / 5)) }).eq('userName', window.currentUser);
+    if (typeof window.loadNextQuestion === 'function') window.loadNextQuestion();
 }
