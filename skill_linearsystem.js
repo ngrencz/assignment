@@ -204,18 +204,34 @@ function initCanvas() {
 }
 
 async function finishGame() {
+    // 1. Log completion to Supabase FIRST and wait for it
     if (window.supabaseClient && window.currentUser) {
         try {
-            const { data } = await window.supabaseClient.from('assignment').select('LinearSystem').eq('userName', window.currentUser).single();
-            const currentScore = data?.LinearSystem || 0;
-            // Respecting int2: Only integers, increment by 1
-            await window.supabaseClient.from('assignment').update({ LinearSystem: currentScore + 1 }).eq('userName', window.currentUser);
-        } catch(e) { console.error("Database sync failed:", e); }
+            const { data } = await window.supabaseClient
+                .from('assignment')
+                .select('LinearSystem')
+                .eq('userName', window.currentUser)
+                .single();
+
+            const nextScore = (data?.LinearSystem || 0) + 1;
+
+            await window.supabaseClient
+                .from('assignment')
+                .update({ LinearSystem: nextScore })
+                .eq('userName', window.currentUser);
+            
+            console.log("Database update successful.");
+        } catch(e) { 
+            console.error("Database sync failed, moving on anyway.", e); 
+        }
     }
     
+    // 2. Clear state and trigger the loadNextQuestion via the window object
+    console.log("Triggering next module via Hub...");
     if (typeof window.loadNextQuestion === 'function') {
         window.loadNextQuestion();
     } else {
+        // Hub fallback
         location.reload();
     }
 }
