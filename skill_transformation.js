@@ -1,12 +1,10 @@
 /**
- * Transformation Geometry Game - V7.1 (UI Fixes)
- * Features:
- * - Visual Matching (Shape-based)
- * - Split Animation (X then Y)
- * - Specific C6 Database Columns
- * - Adaptive Difficulty
- * - Min 3 Moves
- * - FIXED: Wider inputs & Decimal support restored
+ * Transformation Geometry Game - V8 (Strict Scoring & UI Fixes)
+ * * Changelog:
+ * - Fixed: Translation inputs default to step=1. Only change to 0.25 if shape has decimals.
+ * - Fixed: Scoring now strictly tracks C6 columns (No LinearSystem).
+ * - Fixed: "Mistake" logic allows manual X/Y split without penalty.
+ * - Fixed: Aggregate score calculation based on % efficiency.
  */
 
 // Global State
@@ -18,9 +16,11 @@ var editingIndex = -1;
 var isAnimating = false;
 var moveSequence = [];
 var roundResults = []; 
+var generatedMoves = []; // To track the optimal path length
+var testedSkills = [];   // To track which skills were active in the current round
 
-// Session error tracking for specific columns
-var sessionErrors = {
+// Accumulators for session score changes
+var sessionDeltas = {
     C6Translation: 0,
     C6ReflectionX: 0,
     C6ReflectionY: 0,
@@ -43,23 +43,22 @@ window.initTransformationGame = async function() {
     window.currentQSeconds = 0;
     currentRound = 1;
     roundResults = [];
-    
-    // Reset session errors
-    sessionErrors = {
-        C6Translation: 0, C6ReflectionX: 0, C6ReflectionY: 0, C6Rotation: 0, C6Dilation: 0
-    };
+    sessionDeltas = { C6Translation: 0, C6ReflectionX: 0, C6ReflectionY: 0, C6Rotation: 0, C6Dilation: 0 };
 
-    // Fetch previous progress to determine difficulty
+    // Fetch previous progress
     try {
         const { data } = await window.supabaseClient
             .from('assignment')
             .select('C6Translation, C6ReflectionX, C6ReflectionY, C6Rotation, C6Dilation, C6Transformation')
             .eq('userName', window.currentUser)
             .maybeSingle();
-        window.userProgress = data || { 
-            C6Translation: 0, C6ReflectionX: 0, C6ReflectionY: 0, 
-            C6Rotation: 0, C6Dilation: 0, C6Transformation: 0 
-        };
+        
+        // Ensure nulls become 0
+        window.userProgress = data || {};
+        ['C6Translation', 'C6ReflectionX', 'C6ReflectionY', 'C6Rotation', 'C6Dilation', 'C6Transformation'].forEach(key => {
+            if (window.userProgress[key] == null) window.userProgress[key] = 0;
+        });
+
     } catch (e) {
         window.userProgress = { 
             C6Translation: 0, C6ReflectionX: 0, C6ReflectionY: 0, 
@@ -72,26 +71,27 @@ window.initTransformationGame = async function() {
 
 function startNewRound() {
     moveSequence = [];
+    generatedMoves = [];
+    testedSkills = [];
     editingIndex = -1;
     isAnimating = false;
     
-    // Adaptive Logic: Create a weighted pool based on lowest scores
+    // Adaptive Logic: Target lowest scores
     let skillWeights = [
-        { type: 'translation', score: window.userProgress.C6Translation },
-        { type: 'reflectX', score: window.userProgress.C6ReflectionX },
-        { type: 'reflectY', score: window.userProgress.C6ReflectionY },
-        { type: 'rotate', score: window.userProgress.C6Rotation },
-        { type: 'dilation', score: window.userProgress.C6Dilation }
+        { type: 'translation', key: 'C6Translation', score: window.userProgress.C6Translation },
+        { type: 'reflectX', key: 'C6ReflectionX', score: window.userProgress.C6ReflectionX },
+        { type: 'reflectY', key: 'C6ReflectionY', score: window.userProgress.C6ReflectionY },
+        { type: 'rotate', key: 'C6Rotation', score: window.userProgress.C6Rotation },
+        { type: 'dilation', key: 'C6Dilation', score: window.userProgress.C6Dilation }
     ];
     
-    // Sort by score ascending (lower score = higher priority)
     skillWeights.sort((a, b) => a.score - b.score);
     
-    // Create pool: Weighted heavily towards the bottom 2 skills
+    // Weighted pool (lowest 2 get 4x weight)
     let typePool = [];
     skillWeights.forEach((skill, index) => {
-        let weight = index < 2 ? 4 : 1; // 4x more likely if it's a weak skill
-        for(let k=0; k<weight; k++) typePool.push(skill.type);
+        let weight = index < 2 ? 4 : 1;
+        for(let k=0; k<weight; k++) typePool.push(skill);
     });
 
     let validChallenge = false;
@@ -99,7 +99,6 @@ function startNewRound() {
         const shapeKeys = Object.keys(SHAPES);
         const baseCoords = SHAPES[shapeKeys[Math.floor(Math.random() * shapeKeys.length)]];
         
-        // Random start position near center
         let offX = Math.floor(Math.random() * 4) - 2;
         let offY = Math.floor(Math.random() * 4) - 2;
         currentShape = baseCoords.map(p => [p[0] + offX, p[1] + offY]);
@@ -107,32 +106,34 @@ function startNewRound() {
         originalStartShape = JSON.parse(JSON.stringify(currentShape));
         targetShape = JSON.parse(JSON.stringify(currentShape));
 
-        // Generate Minimum 3 steps
-        let stepCount = Math.floor(Math.random() * 3) + 3; // Generates 3, 4, or 5
+        let stepCount = Math.floor(Math.random() * 3) + 3; // 3 to 5 steps
         
+        let tempTested = [];
         for (let i = 0; i < stepCount; i++) {
-            let pickedType = typePool[Math.floor(Math.random() * typePool.length)];
-            applyMoveToPoints(targetShape, generateMove(pickedType));
+            let picked = typePool[Math.floor(Math.random() * typePool.length)];
+            let move = generateMove(picked.type);
+            applyMoveToPoints(targetShape, move);
+            generatedMoves.push(move);
+            if (!tempTested.includes(picked.key)) tempTested.push(picked.key);
         }
+        testedSkills = tempTested;
 
-        // Boundary check (-10 to 10) and ensure it's not microscopic
         let isOnGrid = targetShape.every(p => Math.abs(p[0]) <= 10 && Math.abs(p[1]) <= 10);
         let isVisible = targetShape.every(p => Math.abs(p[0]) > 0.05 || Math.abs(p[1]) > 0.05);
         let moved = JSON.stringify(targetShape) !== JSON.stringify(originalStartShape);
 
         if (moved && isOnGrid && isVisible) validChallenge = true;
+        else { generatedMoves = []; testedSkills = []; }
     }
     renderUI();
 }
 
 function generateMove(type) {
     if (type === 'translation') return { type, dx: Math.floor(Math.random() * 5) - 2, dy: Math.floor(Math.random() * 5) - 2 };
-    // Force non-zero translation if possible, though 0 is valid but boring
     if (type === 'translation' && Math.random() > 0.5) return { type, dx: Math.floor(Math.random() * 6) - 3, dy: Math.floor(Math.random() * 6) - 3 };
-    
     if (type === 'rotate') return { type, deg: [90, 180][Math.floor(Math.random() * 2)], dir: ['CW', 'CCW'][Math.floor(Math.random() * 2)] };
-    if (type === 'dilation') return { type, factor: [0.5, 2][Math.floor(Math.random() * 2)] }; // Simplifed pool for solvability
-    return { type }; // reflectX, reflectY need no params
+    if (type === 'dilation') return { type, factor: [0.5, 2][Math.floor(Math.random() * 2)] };
+    return { type };
 }
 
 function applyMoveToPoints(pts, m) {
@@ -212,26 +213,17 @@ function renderUI() {
 function showFlash(msg, type) {
     const overlay = document.getElementById('flash-overlay');
     if (!overlay) return;
-    
     overlay.innerText = msg;
     overlay.style.display = 'block';
     overlay.style.backgroundColor = type === 'success' ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)';
-    
-    overlay.animate([
-        { opacity: 0, transform: 'translate(-50%, -40%)' },
-        { opacity: 1, transform: 'translate(-50%, -50%)' }
-    ], { duration: 200, fill: 'forwards' });
-
-    setTimeout(() => {
-        overlay.style.display = 'none';
-    }, 1500);
+    overlay.animate([{ opacity: 0, transform: 'translate(-50%, -40%)' }, { opacity: 1, transform: 'translate(-50%, -50%)' }], { duration: 200, fill: 'forwards' });
+    setTimeout(() => { overlay.style.display = 'none'; }, 1500);
 }
 
 function updateCoordinateList() {
     const curDiv = document.getElementById('current-coords');
     const tarDiv = document.getElementById('target-coords');
     if (!curDiv || !tarDiv) return;
-
     curDiv.innerHTML = currentShape.map((p, i) => `(${p[0].toFixed(2)}, ${p[1].toFixed(2)})`).join('<br>');
     tarDiv.innerHTML = targetShape.map((p, i) => `(${p[0].toFixed(2)}, ${p[1].toFixed(2)})`).join('<br>');
 }
@@ -257,21 +249,25 @@ function setupCanvas() {
     };
 }
 
+// Logic: Check if we have integers. If not, step = 0.25
 window.updateSubInputs = function() {
     const val = document.getElementById('move-selector').value;
     const container = document.getElementById('sub-inputs');
     let existing = (editingIndex !== -1) ? moveSequence[editingIndex] : null;
 
+    // Detect if current shape has decimals
+    const hasDecimals = currentShape.some(p => !Number.isInteger(p[0]) || !Number.isInteger(p[1]));
+    const stepVal = hasDecimals ? "0.25" : "1";
+
     if (val === 'translation') {
-        // FIXED: Increased width to 80px and restored step="0.25" for decimals
         container.innerHTML = `
             <div style="display:flex; align-items:center; margin-right: 10px;">
                 <span style="font-weight:bold; margin-right:5px;">X:</span> 
-                <input type="number" id="dx" step="0.25" value="${existing?.dx || 0}" style="width:80px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px; font-size:14px;">
+                <input type="number" id="dx" step="${stepVal}" value="${existing?.dx || 0}" style="width:80px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px; font-size:14px;">
             </div>
             <div style="display:flex; align-items:center;">
                 <span style="font-weight:bold; margin-right:5px;">Y:</span> 
-                <input type="number" id="dy" step="0.25" value="${existing?.dy || 0}" style="width:80px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px; font-size:14px;">
+                <input type="number" id="dy" step="${stepVal}" value="${existing?.dy || 0}" style="width:80px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px; font-size:14px;">
             </div>`;
     } else if (val === 'rotate') {
         container.innerHTML = `
@@ -284,7 +280,6 @@ window.updateSubInputs = function() {
                 <option value="CCW" ${existing?.dir == 'CCW' ? 'selected' : ''}>CCW</option>
             </select>`;
     } else if (val === 'dilation') {
-        // FIXED: Increased width and step
         container.innerHTML = `
             <span style="font-weight:bold; margin-right:5px;">Scale:</span> 
             <input type="number" id="dil-factor" step="0.25" value="${existing?.factor || 1}" style="width:80px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px;">`;
@@ -338,32 +333,20 @@ async function animateMove(pts, m) {
     
     // Split X and Y movement for translations if both exist
     if (m.type === 'translation' && m.dx !== 0 && m.dy !== 0) {
-        
-        // Leg 1: Move X only
         let midPoints = startPoints.map(p => [p[0] + m.dx, p[1]]);
         await runLerp(startPoints, midPoints);
-        
-        // Brief pause
         await new Promise(r => setTimeout(r, 100));
-
-        // Leg 2: Move Y only
         let endPoints = midPoints.map(p => [p[0], p[1] + m.dy]);
         await runLerp(midPoints, endPoints);
-
-        // Update final state in place
         applyMoveToPoints(pts, m);
-
     } else {
-        // Standard single animation
         applyMoveToPoints(pts, m);
         let endPoints = JSON.parse(JSON.stringify(pts));
         await runLerp(startPoints, endPoints);
     }
-    
     isAnimating = false;
 }
 
-// Helper to run the frame loop
 async function runLerp(fromPts, toPts) {
     const frames = 15;
     for (let f = 1; f <= frames; f++) {
@@ -403,15 +386,12 @@ function draw(pts) {
     const ctx = canvas.getContext('2d'), step = 20, center = 220;
     ctx.clearRect(0,0,440,440);
 
-    // Grid
     ctx.strokeStyle="#f1f5f9"; ctx.beginPath();
     for(let i=0; i<=440; i+=step){ ctx.moveTo(i,0); ctx.lineTo(i,440); ctx.moveTo(0,i); ctx.lineTo(440,i); } ctx.stroke();
     
-    // Axes
     ctx.strokeStyle="#64748b"; ctx.lineWidth=2; ctx.beginPath();
     ctx.moveTo(center,0); ctx.lineTo(center,440); ctx.moveTo(0,center); ctx.lineTo(440,center); ctx.stroke();
 
-    // Numbers
     ctx.fillStyle = "#94a3b8"; ctx.font = "9px Arial"; ctx.textAlign = "center";
     for(let i = -10; i <= 10; i++) {
         if(i === 0) continue;
@@ -419,11 +399,9 @@ function draw(pts) {
         ctx.fillText(i, center - 10, center - (i * step) + 3);
     }
 
-    // Ghost Target
     ctx.setLineDash([4,2]); ctx.strokeStyle="rgba(0,0,0,0.2)"; ctx.fillStyle="rgba(0,0,0,0.03)";
     drawShape(ctx, targetShape, center, step, false);
 
-    // Current Shape
     ctx.setLineDash([]); ctx.strokeStyle="#15803d"; ctx.fillStyle="rgba(34, 197, 94, 0.6)"; 
     drawShape(ctx, pts, center, step, true);
 }
@@ -438,7 +416,6 @@ function drawShape(ctx, pts, center, step, fill) {
     if(fill) ctx.fill(); 
     ctx.stroke();
     
-    // Vertex Dots
     ctx.fillStyle = fill ? "#166534" : "#94a3b8";
     pts.forEach(p => {
          let x = center + (p[0] * step), y = center - (p[1] * step);
@@ -446,11 +423,8 @@ function drawShape(ctx, pts, center, step, fill) {
     });
 }
 
-// Visual Win Check (ignores vertex order)
 window.checkWin = function() {
-    // Sort logic: X ascending, then Y ascending
     const sorter = (a, b) => (a[0] - b[0]) || (a[1] - b[1]);
-    
     let sortedCurrent = [...currentShape].sort(sorter);
     let sortedTarget = [...targetShape].sort(sorter);
 
@@ -460,8 +434,40 @@ window.checkWin = function() {
     );
 
     if (isCorrect) {
-        roundResults.push(1);
-        showFlash("Perfect! Next Round...", "success");
+        // Calculate Moves vs Target (Combine Split Translations Logic)
+        let adjustedUserMoves = 0;
+        for (let i = 0; i < moveSequence.length; i++) {
+            adjustedUserMoves++;
+            // Check if current is X-trans and next is Y-trans (or vice versa) and combine them
+            if (i < moveSequence.length - 1) {
+                let m1 = moveSequence[i];
+                let m2 = moveSequence[i+1];
+                if (m1.type === 'translation' && m2.type === 'translation') {
+                    // If one is horizontal only and other is vertical only, treat as 1 move
+                    if ((m1.dx !== 0 && m1.dy === 0 && m2.dx === 0 && m2.dy !== 0) ||
+                        (m1.dx === 0 && m1.dy !== 0 && m2.dx !== 0 && m2.dy === 0)) {
+                        i++; // Skip next move
+                    }
+                }
+            }
+        }
+
+        const mistakes = Math.max(0, adjustedUserMoves - generatedMoves.length);
+        
+        // Track stats for aggregate
+        roundResults.push({ target: generatedMoves.length, actual: adjustedUserMoves });
+
+        // Update Skill Deltas
+        let change = 0;
+        if (mistakes === 0) change = 1;
+        else if (mistakes === 1) change = 0;
+        else change = -1;
+
+        testedSkills.forEach(key => {
+            sessionDeltas[key] += change;
+        });
+
+        showFlash("Correct!", "success");
         currentRound++;
         
         setTimeout(() => {
@@ -469,18 +475,7 @@ window.checkWin = function() {
             else startNewRound();
         }, 1500);
     } else {
-        // Track error type based on last move
-        let lastMove = moveSequence[moveSequence.length - 1];
-        if (lastMove) {
-            if (lastMove.type === 'translation') sessionErrors.C6Translation++;
-            else if (lastMove.type === 'reflectX') sessionErrors.C6ReflectionX++;
-            else if (lastMove.type === 'reflectY') sessionErrors.C6ReflectionY++;
-            else if (lastMove.type === 'rotate') sessionErrors.C6Rotation++;
-            else if (lastMove.type === 'dilation') sessionErrors.C6Dilation++;
-        }
-        
-        roundResults.push(0);
-        showFlash("Not quite. Check coords.", "error");
+        showFlash("Incorrect", "error");
     }
 };
 
@@ -492,30 +487,29 @@ async function finishGame() {
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:400px; animation: fadeIn 0.5s;">
             <div style="font-size:60px;">🏆</div>
             <h2 style="color:#1e293b; margin:10px 0;">Session Complete!</h2>
-            <p style="color:#64748b; font-size:16px;">Saving your progress...</p>
+            <p style="color:#64748b; font-size:16px;">Saving progress...</p>
         </div>
     `;
 
     if (window.supabaseClient && window.currentUser) {
         let updates = {};
         
-        // Helper to calc new score: 0 errors = +1, 2+ errors = -1
-        const calcScore = (current, errors) => {
-            let change = (errors === 0) ? 1 : (errors >= 2 ? -1 : 0);
-            return Math.max(0, Math.min(10, current + change));
-        };
+        // Apply deltas to individual skills
+        ['C6Translation', 'C6ReflectionX', 'C6ReflectionY', 'C6Rotation', 'C6Dilation'].forEach(key => {
+            let oldVal = window.userProgress[key] || 0;
+            let change = sessionDeltas[key];
+            updates[key] = Math.max(0, Math.min(10, oldVal + change));
+        });
 
-        // Update specific columns
-        updates.C6Translation = calcScore(window.userProgress.C6Translation || 0, sessionErrors.C6Translation);
-        updates.C6ReflectionX = calcScore(window.userProgress.C6ReflectionX || 0, sessionErrors.C6ReflectionX);
-        updates.C6ReflectionY = calcScore(window.userProgress.C6ReflectionY || 0, sessionErrors.C6ReflectionY);
-        updates.C6Rotation = calcScore(window.userProgress.C6Rotation || 0, sessionErrors.C6Rotation);
-        updates.C6Dilation = calcScore(window.userProgress.C6Dilation || 0, sessionErrors.C6Dilation);
-
-        // Update Aggregate
-        let winCount = roundResults.filter(r => r === 1).length;
-        let successRate = (winCount / roundResults.length) * 100;
-        let aggChange = (successRate >= 70) ? 1 : (successRate <= 50 ? -1 : 0);
+        // Calculate Aggregate (C6Transformation)
+        let totalTarget = roundResults.reduce((acc, r) => acc + r.target, 0);
+        let totalActual = roundResults.reduce((acc, r) => acc + r.actual, 0);
+        let efficiency = totalActual > 0 ? (totalTarget / totalActual) : 0;
+        
+        let aggChange = 0;
+        if (efficiency >= 0.75) aggChange = 1;
+        else if (efficiency < 0.50) aggChange = -1;
+        
         updates.C6Transformation = Math.max(0, Math.min(10, (window.userProgress.C6Transformation || 0) + aggChange));
 
         await window.supabaseClient.from('assignment').update(updates).eq('userName', window.currentUser);
