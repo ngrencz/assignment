@@ -1,5 +1,5 @@
 let linearErrorCountLocal = 0;
-let currentStep = 1; 
+let currentStepLocal = 1; 
 let currentSystem = {};
 let userPoints = [];
 
@@ -10,7 +10,7 @@ window.initLinearSystemGame = async function() {
     window.isCurrentQActive = true;
     window.currentQSeconds = 0;
     linearErrorCountLocal = 0;
-    currentStep = 1;
+    currentStepLocal = 1;
     userPoints = [];
 
     // 1. Generate integer intersection
@@ -55,15 +55,15 @@ function renderLinearUI() {
             </p>
         </div>`;
 
-    if (currentStep === 1) {
+    if (currentStepLocal === 1) {
         html += `<p>Step 1: ${currentSystem.girl.name} thinks the solution is (${currentSystem.girl.x}, ${currentSystem.girl.y}). Correct?</p>
             <button class="primary-btn" onclick="checkPeer(true, 'girl')">Yes</button>
             <button class="secondary-btn" onclick="checkPeer(false, 'girl')">No</button>`;
-    } else if (currentStep === 2) {
+    } else if (currentStepLocal === 2) {
         html += `<p>Step 2: ${currentSystem.boy.name} thinks the solution is (${currentSystem.boy.x}, ${currentSystem.boy.y}). Correct?</p>
             <button class="primary-btn" onclick="checkPeer(true, 'boy')">Yes</button>
             <button class="secondary-btn" onclick="checkPeer(false, 'boy')">No</button>`;
-    } else if (currentStep === 3) {
+    } else if (currentStepLocal === 3) {
         html += `<p>Step 3: How many solutions does this system have?</p>
             <button class="primary-btn" onclick="checkSolutionCount(1)">One</button>
             <button class="primary-btn" onclick="checkSolutionCount(0)">Zero</button>`;
@@ -74,12 +74,12 @@ function renderLinearUI() {
     }
 
     qContent.innerHTML = html;
-    if (currentStep === 4) initCanvas();
+    if (currentStepLocal === 4) initCanvas();
 }
 
 window.checkPeer = function(choice, peerKey) {
     if (choice === currentSystem[peerKey].isCorrect) {
-        currentStep++;
+        currentStepLocal++;
         renderLinearUI();
     } else {
         linearErrorCountLocal++;
@@ -89,7 +89,7 @@ window.checkPeer = function(choice, peerKey) {
 
 window.checkSolutionCount = function(count) {
     if (count === 1) {
-        currentStep = 4;
+        currentStepLocal = 4;
         renderLinearUI();
     } else {
         linearErrorCountLocal++;
