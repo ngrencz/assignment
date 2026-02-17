@@ -1,10 +1,8 @@
 /**
- * Transformation Geometry Game - V8 (Strict Scoring & UI Fixes)
- * * Changelog:
- * - Fixed: Translation inputs default to step=1. Only change to 0.25 if shape has decimals.
- * - Fixed: Scoring now strictly tracks C6 columns (No LinearSystem).
- * - Fixed: "Mistake" logic allows manual X/Y split without penalty.
- * - Fixed: Aggregate score calculation based on % efficiency.
+ * Transformation Geometry Game - V10 (Revert to Switch + Fixes)
+ * - Inputs: Switch between step="1" and step="0.25" based on shape state.
+ * - Scoring: Updates Supabase immediately after each question.
+ * - Logic: Strict mistake counting and aggregate efficiency.
  */
 
 // Global State
@@ -15,18 +13,8 @@ var currentRound = 1;
 var editingIndex = -1;
 var isAnimating = false;
 var moveSequence = [];
-var roundResults = []; 
-var generatedMoves = []; // To track the optimal path length
-var testedSkills = [];   // To track which skills were active in the current round
-
-// Accumulators for session score changes
-var sessionDeltas = {
-    C6Translation: 0,
-    C6ReflectionX: 0,
-    C6ReflectionY: 0,
-    C6Rotation: 0,
-    C6Dilation: 0
-};
+var generatedMoves = []; // Optimal path
+var activeSkills = [];   // Skills used in current problem
 
 // Shape Library
 const SHAPES = {
@@ -39,31 +27,36 @@ const SHAPES = {
 };
 
 window.initTransformationGame = async function() {
+    // Safety check
+    if (!document.getElementById('q-content')) return;
+
     window.isCurrentQActive = true;
     window.currentQSeconds = 0;
     currentRound = 1;
-    roundResults = [];
-    sessionDeltas = { C6Translation: 0, C6ReflectionX: 0, C6ReflectionY: 0, C6Rotation: 0, C6Dilation: 0 };
-
-    // Fetch previous progress
-    try {
-        const { data } = await window.supabaseClient
-            .from('assignment')
-            .select('C6Translation, C6ReflectionX, C6ReflectionY, C6Rotation, C6Dilation, C6Transformation')
-            .eq('userName', window.currentUser)
-            .maybeSingle();
-        
-        // Ensure nulls become 0
-        window.userProgress = data || {};
-        ['C6Translation', 'C6ReflectionX', 'C6ReflectionY', 'C6Rotation', 'C6Dilation', 'C6Transformation'].forEach(key => {
-            if (window.userProgress[key] == null) window.userProgress[key] = 0;
-        });
-
-    } catch (e) {
+    
+    // Initialize userProgress if missing
+    if (!window.userProgress) {
         window.userProgress = { 
             C6Translation: 0, C6ReflectionX: 0, C6ReflectionY: 0, 
             C6Rotation: 0, C6Dilation: 0, C6Transformation: 0 
         };
+    }
+
+    // Attempt to fetch latest scores
+    try {
+        if (window.supabaseClient && window.currentUser) {
+            const { data } = await window.supabaseClient
+                .from('assignment')
+                .select('C6Translation, C6ReflectionX, C6ReflectionY, C6Rotation, C6Dilation, C6Transformation')
+                .eq('userName', window.currentUser)
+                .maybeSingle();
+            
+            if (data) {
+                Object.keys(data).forEach(k => window.userProgress[k] = data[k] || 0);
+            }
+        }
+    } catch (e) {
+        console.log("Offline or sync error, using local defaults");
     }
     
     startNewRound();
@@ -72,11 +65,11 @@ window.initTransformationGame = async function() {
 function startNewRound() {
     moveSequence = [];
     generatedMoves = [];
-    testedSkills = [];
+    activeSkills = [];
     editingIndex = -1;
     isAnimating = false;
     
-    // Adaptive Logic: Target lowest scores
+    // Adaptive Logic
     let skillWeights = [
         { type: 'translation', key: 'C6Translation', score: window.userProgress.C6Translation },
         { type: 'reflectX', key: 'C6ReflectionX', score: window.userProgress.C6ReflectionX },
@@ -87,7 +80,6 @@ function startNewRound() {
     
     skillWeights.sort((a, b) => a.score - b.score);
     
-    // Weighted pool (lowest 2 get 4x weight)
     let typePool = [];
     skillWeights.forEach((skill, index) => {
         let weight = index < 2 ? 4 : 1;
@@ -107,23 +99,23 @@ function startNewRound() {
         targetShape = JSON.parse(JSON.stringify(currentShape));
 
         let stepCount = Math.floor(Math.random() * 3) + 3; // 3 to 5 steps
-        
-        let tempTested = [];
+        let tempSkills = [];
+
         for (let i = 0; i < stepCount; i++) {
             let picked = typePool[Math.floor(Math.random() * typePool.length)];
             let move = generateMove(picked.type);
             applyMoveToPoints(targetShape, move);
             generatedMoves.push(move);
-            if (!tempTested.includes(picked.key)) tempTested.push(picked.key);
+            if (!tempSkills.includes(picked.key)) tempSkills.push(picked.key);
         }
-        testedSkills = tempTested;
+        activeSkills = tempSkills;
 
         let isOnGrid = targetShape.every(p => Math.abs(p[0]) <= 10 && Math.abs(p[1]) <= 10);
         let isVisible = targetShape.every(p => Math.abs(p[0]) > 0.05 || Math.abs(p[1]) > 0.05);
         let moved = JSON.stringify(targetShape) !== JSON.stringify(originalStartShape);
 
         if (moved && isOnGrid && isVisible) validChallenge = true;
-        else { generatedMoves = []; testedSkills = []; }
+        else { generatedMoves = []; activeSkills = []; }
     }
     renderUI();
 }
@@ -133,7 +125,7 @@ function generateMove(type) {
     if (type === 'translation' && Math.random() > 0.5) return { type, dx: Math.floor(Math.random() * 6) - 3, dy: Math.floor(Math.random() * 6) - 3 };
     if (type === 'rotate') return { type, deg: [90, 180][Math.floor(Math.random() * 2)], dir: ['CW', 'CCW'][Math.floor(Math.random() * 2)] };
     if (type === 'dilation') return { type, factor: [0.5, 2][Math.floor(Math.random() * 2)] };
-    return { type };
+    return { type }; 
 }
 
 function applyMoveToPoints(pts, m) {
@@ -249,14 +241,15 @@ function setupCanvas() {
     };
 }
 
-// Logic: Check if we have integers. If not, step = 0.25
+// RESTORED: Logic that switches step based on if decimals are present
 window.updateSubInputs = function() {
     const val = document.getElementById('move-selector').value;
     const container = document.getElementById('sub-inputs');
     let existing = (editingIndex !== -1) ? moveSequence[editingIndex] : null;
 
-    // Detect if current shape has decimals
+    // Check if ANY coordinate in currentShape is non-integer
     const hasDecimals = currentShape.some(p => !Number.isInteger(p[0]) || !Number.isInteger(p[1]));
+    // IF decimals exist, enable 0.25 stepping. OTHERWISE, force integers.
     const stepVal = hasDecimals ? "0.25" : "1";
 
     if (val === 'translation') {
@@ -423,7 +416,8 @@ function drawShape(ctx, pts, center, step, fill) {
     });
 }
 
-window.checkWin = function() {
+// Win Check with IMMEDIATE Supabase update
+window.checkWin = async function() {
     const sorter = (a, b) => (a[0] - b[0]) || (a[1] - b[1]);
     let sortedCurrent = [...currentShape].sort(sorter);
     let sortedTarget = [...targetShape].sort(sorter);
@@ -434,38 +428,59 @@ window.checkWin = function() {
     );
 
     if (isCorrect) {
-        // Calculate Moves vs Target (Combine Split Translations Logic)
+        // --- Scoring Logic ---
+        
+        // 1. Calculate Actual Moves (Combining split X/Y translations)
         let adjustedUserMoves = 0;
         for (let i = 0; i < moveSequence.length; i++) {
             adjustedUserMoves++;
-            // Check if current is X-trans and next is Y-trans (or vice versa) and combine them
             if (i < moveSequence.length - 1) {
-                let m1 = moveSequence[i];
-                let m2 = moveSequence[i+1];
+                let m1 = moveSequence[i], m2 = moveSequence[i+1];
                 if (m1.type === 'translation' && m2.type === 'translation') {
-                    // If one is horizontal only and other is vertical only, treat as 1 move
+                    // Check if one moves X only and other moves Y only
                     if ((m1.dx !== 0 && m1.dy === 0 && m2.dx === 0 && m2.dy !== 0) ||
                         (m1.dx === 0 && m1.dy !== 0 && m2.dx !== 0 && m2.dy === 0)) {
-                        i++; // Skip next move
+                        i++; // Skip next move (count as 1 combined)
                     }
                 }
             }
         }
 
-        const mistakes = Math.max(0, adjustedUserMoves - generatedMoves.length);
+        const optimalMoves = generatedMoves.length;
+        const mistakes = Math.max(0, adjustedUserMoves - optimalMoves);
+        const efficiency = optimalMoves / adjustedUserMoves;
+
+        // 2. Prepare Updates
+        let updates = {};
+
+        // Calculate Skill Deltas (0 mistakes = +1, 1 mistake = 0, >1 = -1)
+        let skillDelta = (mistakes === 0) ? 1 : (mistakes === 1 ? 0 : -1);
         
-        // Track stats for aggregate
-        roundResults.push({ target: generatedMoves.length, actual: adjustedUserMoves });
-
-        // Update Skill Deltas
-        let change = 0;
-        if (mistakes === 0) change = 1;
-        else if (mistakes === 1) change = 0;
-        else change = -1;
-
-        testedSkills.forEach(key => {
-            sessionDeltas[key] += change;
+        // Update Local State & Prepare DB Object for Skills
+        activeSkills.forEach(key => {
+            let oldVal = window.userProgress[key] || 0;
+            let newVal = Math.max(0, Math.min(10, oldVal + skillDelta));
+            window.userProgress[key] = newVal;
+            updates[key] = newVal;
         });
+
+        // Calculate Aggregate (C6Transformation)
+        let aggDelta = 0;
+        if (efficiency >= 0.75) aggDelta = 1;
+        else if (efficiency < 0.50) aggDelta = -1;
+
+        let oldAgg = window.userProgress.C6Transformation || 0;
+        let newAgg = Math.max(0, Math.min(10, oldAgg + aggDelta));
+        window.userProgress.C6Transformation = newAgg;
+        updates.C6Transformation = newAgg;
+
+        // 3. Send to Supabase IMMEDIATELY
+        if (window.supabaseClient && window.currentUser) {
+            await window.supabaseClient
+                .from('assignment')
+                .update(updates)
+                .eq('userName', window.currentUser);
+        }
 
         showFlash("Correct!", "success");
         currentRound++;
@@ -474,6 +489,7 @@ window.checkWin = function() {
             if (currentRound > 3) finishGame();
             else startNewRound();
         }, 1500);
+
     } else {
         showFlash("Incorrect", "error");
     }
@@ -483,38 +499,15 @@ async function finishGame() {
     window.isCurrentQActive = false; 
     const qContent = document.getElementById('q-content');
     
+    // UI Only - Scoring happened in checkWin
     qContent.innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:400px; animation: fadeIn 0.5s;">
             <div style="font-size:60px;">🏆</div>
-            <h2 style="color:#1e293b; margin:10px 0;">Session Complete!</h2>
-            <p style="color:#64748b; font-size:16px;">Saving progress...</p>
+            <h2 style="color:#1e293b; margin:10px 0;">Great Job!</h2>
+            <p style="color:#64748b; font-size:16px;">Skills updated.</p>
         </div>
     `;
 
-    if (window.supabaseClient && window.currentUser) {
-        let updates = {};
-        
-        // Apply deltas to individual skills
-        ['C6Translation', 'C6ReflectionX', 'C6ReflectionY', 'C6Rotation', 'C6Dilation'].forEach(key => {
-            let oldVal = window.userProgress[key] || 0;
-            let change = sessionDeltas[key];
-            updates[key] = Math.max(0, Math.min(10, oldVal + change));
-        });
-
-        // Calculate Aggregate (C6Transformation)
-        let totalTarget = roundResults.reduce((acc, r) => acc + r.target, 0);
-        let totalActual = roundResults.reduce((acc, r) => acc + r.actual, 0);
-        let efficiency = totalActual > 0 ? (totalTarget / totalActual) : 0;
-        
-        let aggChange = 0;
-        if (efficiency >= 0.75) aggChange = 1;
-        else if (efficiency < 0.50) aggChange = -1;
-        
-        updates.C6Transformation = Math.max(0, Math.min(10, (window.userProgress.C6Transformation || 0) + aggChange));
-
-        await window.supabaseClient.from('assignment').update(updates).eq('userName', window.currentUser);
-    }
-    
     setTimeout(() => { 
         if (typeof window.loadNextQuestion === 'function') window.loadNextQuestion(); 
     }, 2500);
