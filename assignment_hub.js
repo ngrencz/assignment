@@ -1,211 +1,234 @@
-// --- Configuration & Supabase Init ---
-const SB_URL = "https://khazeoycsjdqnmwodncw.supabase.co";
-const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoYXplb3ljc2pkcW5td29kbmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MDMwOTMsImV4cCI6MjA3ODQ3OTA5M30.h-WabaGcQZ968sO2ImetccUaRihRFmO2mUKCdPiAbEI";
-const isAssignmentPage = window.location.pathname.includes('assignment.html');
+{
+    let linearErrorCount = 0;
+    let currentStep = 1; 
+    let currentSystem = {};
+    let userPoints = [];
 
-window.supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+    const femaleNames = ["Maya", "Sarah", "Elena", "Chloe", "Amara", "Jasmine"];
+    const maleNames = ["Liam", "Noah", "Caleb", "Ethan", "Leo", "Isaac"];
 
-// Global State
-window.totalSecondsWorked = parseInt(sessionStorage.getItem('total_work_time')) || 0;
-window.isCurrentQActive = false;
-window.currentQSeconds = 0;
-window.currentUser = sessionStorage.getItem('current_user') || 'test_user';
-window.targetLesson = sessionStorage.getItem('target_lesson') || '6.2.4';
-window.lastActivity = Date.now();
-window.isIdle = false;
-window.hasDonePrimaryLesson = false;
-window.skillsCompletedThisSession = []; 
-window.canCount = false; 
-window.resumeTimeout = null;
-window.isWindowLargeEnough = true;
+    window.initLinearSystemGame = async function() {
+        window.isCurrentQActive = true;
+        window.currentQSeconds = 0;
+        linearErrorCount = 0;
+        currentStep = 1;
+        userPoints = [];
 
-// --- Window Size Checker Function ---
-function checkWindowSize() {
-    // Only run the strict sizing check on the real assignment page
-    if (!isAssignmentPage) {
-        window.isWindowLargeEnough = true;
-        return;
-    }
+        // 1. Generate intersection (within visible -4 to 4)
+        const targetX = Math.floor(Math.random() * 7) - 3; 
+        const targetY = Math.floor(Math.random() * 7) - 3; 
 
-    const screenWidth = window.screen.availWidth;
-    const screenHeight = window.screen.availHeight;
-    const winWidth = window.outerWidth;
-    const winHeight = window.outerHeight;
-    const overlay = document.getElementById('size-overlay');
+        // 2. Generate slopes that keep the line manageable
+        let m1 = Math.floor(Math.random() * 2) + 1; 
+        let m2 = Math.floor(Math.random() * 2) - 1; 
+        if (m2 === 0) m2 = -2; // Avoid zero slope for variety
 
-    if (winWidth < (screenWidth * 0.9) || winHeight < (screenHeight * 0.9)) {
-        window.isWindowLargeEnough = false;
-        if (overlay) overlay.classList.add('active');
-    } else {
-        window.isWindowLargeEnough = true;
-        if (overlay) overlay.classList.remove('active');
-    }
-}
+        const b1 = targetY - (m1 * targetX);
+        const b2 = targetY - (m2 * targetX);
 
-// --- Activity & Focus Listeners ---
-window.onblur = () => {
-    window.canCount = false;
-    clearTimeout(window.resumeTimeout);
-    if (typeof log === "function") log("⏸️ Window Lost Focus: Timer stopped.");
-};
+        // Safety: Redo if the intercept is way off the 300px canvas
+        if (Math.abs(b1) > 4 || Math.abs(b2) > 4) return window.initLinearSystemGame();
 
-window.onfocus = () => {
-    if (typeof log === "function") log("⏱️ Window Regained.");
-    
-    clearTimeout(window.resumeTimeout);
+        const girl = femaleNames[Math.floor(Math.random() * femaleNames.length)];
+        const boy = maleNames[Math.floor(Math.random() * maleNames.length)];
 
-    if (isAssignmentPage) {
-        // Apply the 15s penalty only to students
-        if (typeof log === "function") log("Penalty applied: 15s cooldown...");
-        window.resumeTimeout = setTimeout(() => {
-            window.canCount = true;
-        }, 15000);
-    } else {
-        // Dev mode: No penalty, instant resume
-        window.canCount = true;
-    }
-};
+        const girlCorrect = Math.random() > 0.5;
+        const boyCorrect = !girlCorrect;
 
-window.addEventListener('resize', checkWindowSize);
-checkWindowSize(); // Initial check
+        currentSystem = {
+            m1, b1, m2, b2,
+            targetX, targetY,
+            girl: { name: girl, x: girlCorrect ? targetX : targetX + 1, y: girlCorrect ? targetY : targetY + 1, isCorrect: girlCorrect },
+            boy: { name: boy, x: boyCorrect ? targetX : targetX - 1, y: boyCorrect ? targetY : targetY - 1, isCorrect: boyCorrect },
+            eq1Disp: `y = ${m1 === 1 ? '' : m1}x ${b1 >= 0 ? '+ ' + b1 : '- ' + Math.abs(b1)}`,
+            eq2Disp: `y = ${m2 === 1 ? '' : m2 === -1 ? '-' : m2}x ${b2 >= 0 ? '+ ' + b2 : '- ' + Math.abs(b2)}`
+        };
 
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-        window.canCount = false;
-        clearTimeout(window.resumeTimeout);
-    }
-});
+        renderLinearUI();
+    };
 
-// Initial startup countdown
-if (!isAssignmentPage) {
-    window.canCount = true; 
-} else {
-    window.resumeTimeout = setTimeout(() => { window.canCount = true; }, 20000);
-}
+    function renderLinearUI() {
+        const qContent = document.getElementById('q-content');
+        document.getElementById('q-title').innerText = "System Analysis";
 
-// --- The Master Timer Loop ---
-setInterval(() => {
-    // If we are NOT on the assignment page, don't run the timer logic at all
-    if (!isAssignmentPage) return;
+        let html = `
+            <div style="background:#f8fafc; padding:15px; border-radius:12px; margin-bottom:15px; border: 1px solid #e2e8f0; text-align:center;">
+                <p style="font-family:monospace; font-size:1.2rem; margin:0;">
+                    1: <strong>${currentSystem.eq1Disp}</strong><br>
+                    2: <strong>${currentSystem.eq2Disp}</strong>
+                </p>
+            </div>`;
 
-    const statePill = document.getElementById('timer-state-pill');
-    const totalDisplay = document.getElementById('debug-total-time');
-    const qTimeDisplay = document.getElementById('debug-q-time');
-    
-    // Inactivity check
-    const secondsSinceLastActivity = (Date.now() - window.lastActivity) / 1000;
-    if (secondsSinceLastActivity > 30) window.isIdle = true;
-
-    const qContent = document.getElementById('q-content');
-    const hasQuestion = qContent && qContent.innerHTML.length > 50 && !qContent.innerText.includes("Wait...");
-
-    // SINGLE Condition for ticking
-    if (window.isCurrentQActive && window.canCount && hasQuestion && !window.isIdle && window.isWindowLargeEnough) {
-        window.totalSecondsWorked++;
-        window.currentQSeconds++;
-        sessionStorage.setItem('total_work_time', window.totalSecondsWorked);
-
-        // UI Updates
-        let mins = Math.floor(window.totalSecondsWorked / 60);
-        let secs = window.totalSecondsWorked % 60;
-        if (totalDisplay) totalDisplay.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs} / 12:00`;
-        if (qTimeDisplay) qTimeDisplay.innerText = `${window.currentQSeconds}s`;
-        
-        if (statePill) {
-            statePill.innerText = "RUNNING";
-            statePill.style.background = "#22c55e";
+        if (currentStep === 1) {
+            html += `<p><strong>Step 1:</strong> ${currentSystem.girl.name} thinks the solution is (${currentSystem.girl.x}, ${currentSystem.girl.y}). Is she correct?</p>
+                <div style="display:flex; gap:10px; justify-content:center;">
+                    <button class="primary-btn" onclick="checkPeer(true, 'girl')">Yes</button>
+                    <button class="secondary-btn" onclick="checkPeer(false, 'girl')">No</button>
+                </div>`;
+        } else if (currentStep === 2) {
+            html += `<p><strong>Step 2:</strong> ${currentSystem.boy.name} thinks the solution is (${currentSystem.boy.x}, ${currentSystem.boy.y}). Is he correct?</p>
+                <div style="display:flex; gap:10px; justify-content:center;">
+                    <button class="primary-btn" onclick="checkPeer(true, 'boy')">Yes</button>
+                    <button class="secondary-btn" onclick="checkPeer(false, 'boy')">No</button>
+                </div>`;
+        } else if (currentStep === 3) {
+            html += `<p><strong>Step 3:</strong> How many solutions does this system have?</p>
+                <div style="display:grid; grid-template-columns: 1fr; gap:10px;">
+                    <button class="primary-btn" onclick="checkSolutionCount(1)">Exactly One (Intersecting)</button>
+                    <button class="primary-btn" onclick="checkSolutionCount(0)">None (Parallel)</button>
+                </div>`;
+        } else {
+            html += `<p><strong>Step 4:</strong> Plot 2 points for Line 1 (Blue), then 2 points for Line 2 (Red).</p>
+                <div style="text-align:center;">
+                    <canvas id="systemCanvas" width="300" height="300" style="background:white; border:2px solid #cbd5e1; cursor:crosshair;"></canvas>
+                    <div id="graph-status" style="margin-top:5px; font-weight:bold; color:#3b82f6;">Line 1: Plot Point 1</div>
+                </div>`;
         }
-        
-        if (window.totalSecondsWorked >= 720) finishAssignment();
-    } else {
-        // Handle PAUSED states for students
-        if (statePill) {
-            if (!window.isWindowLargeEnough) {
-                statePill.innerText = "RESTORE WINDOW SIZE";
-                statePill.style.background = "#7c3aed";
-            } else if (!hasQuestion) {
-                statePill.innerText = "NO QUESTION";
-                statePill.style.background = "#64748b";
-            } else if (window.isIdle) {
-                statePill.innerText = "IDLE PAUSE";
-                statePill.style.background = "#f59e0b";
-            } else if (!window.canCount) {
-                statePill.innerText = "TAB PENALTY";
-                statePill.style.background = "#3b82f6";
+
+        qContent.innerHTML = html;
+        if (currentStep === 4) initCanvas();
+    }
+
+    window.checkPeer = function(userSaidCorrect, peerKey) {
+        const peer = currentSystem[peerKey];
+        const feedback = document.getElementById('feedback-box');
+        feedback.style.display = "block";
+        if (userSaidCorrect === peer.isCorrect) {
+            feedback.className = "correct";
+            feedback.innerText = "Correct!";
+            currentStep++;
+            setTimeout(renderLinearUI, 800);
+        } else {
+            linearErrorCount++;
+            feedback.className = "incorrect";
+            feedback.innerText = "Check the math again!";
+        }
+    };
+
+    window.checkSolutionCount = function(count) {
+        const feedback = document.getElementById('feedback-box');
+        feedback.style.display = "block";
+        if (count === 1) {
+            feedback.className = "correct";
+            feedback.innerText = "Correct! Slopes are different.";
+            currentStep = 4;
+            setTimeout(renderLinearUI, 800);
+        } else {
+            linearErrorCount++;
+            feedback.className = "incorrect";
+            feedback.innerText = "Look closely at the slopes!";
+        }
+    };
+
+    function initCanvas() {
+        const canvas = document.getElementById('systemCanvas');
+        const ctx = canvas.getContext('2d');
+        const step = 30;
+
+        function drawGrid() {
+            ctx.clearRect(0,0,300,300);
+            ctx.strokeStyle = "#e2e8f0";
+            for(let i=0; i<=300; i+=step) {
+                ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,300); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(300,i); ctx.stroke();
+            }
+            ctx.strokeStyle = "#000"; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(150,0); ctx.lineTo(150,300); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0,150); ctx.lineTo(300,150); ctx.stroke();
+        }
+
+        function redrawLines() {
+            drawGrid();
+            // Redraw Line 1 if it was already validated
+            if (userPoints.length >= 2) {
+                const lp1 = userPoints[0]; const lp2 = userPoints[1];
+                ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(150 + (lp1.x-10)*step, 150 - (lp1.y + currentSystem.m1*(lp1.x-10 - lp1.x))*step);
+                ctx.lineTo(150 + (lp1.x+10)*step, 150 - (lp1.y + currentSystem.m1*(lp1.x+10 - lp1.x))*step);
+                ctx.stroke();
+                // Draw dots for line 1
+                ctx.fillStyle = "#3b82f6";
+                [lp1, lp2].forEach(p => { ctx.beginPath(); ctx.arc(150 + p.x*step, 150 - p.y*step, 5, 0, Math.PI*2); ctx.fill(); });
+            }
+            // Draw current dots for Line 2
+            if (userPoints.length > 2) {
+                ctx.fillStyle = "#ef4444";
+                for (let i=2; i < userPoints.length; i++) {
+                    ctx.beginPath(); ctx.arc(150 + userPoints[i].x*step, 150 - userPoints[i].y*step, 5, 0, Math.PI*2); ctx.fill();
+                }
+            }
+        }
+
+        drawGrid();
+
+        canvas.onclick = function(e) {
+            const rect = canvas.getBoundingClientRect();
+            const gridX = Math.round(((e.clientX - rect.left) - 150) / step);
+            const gridY = Math.round((150 - (e.clientY - rect.top)) / step);
+            
+            userPoints.push({x: gridX, y: gridY});
+            
+            if (userPoints.length === 2) {
+                validateLine(1);
+            } else if (userPoints.length === 4) {
+                validateLine(2);
             } else {
-                statePill.innerText = "PAUSED";
-                statePill.style.background = "#ef4444";
+                redrawLines();
+            }
+            updateStatus();
+        };
+
+        function validateLine(num) {
+            const p1 = userPoints[num === 1 ? 0 : 2];
+            const p2 = userPoints[num === 1 ? 1 : 3];
+            const m = num === 1 ? currentSystem.m1 : currentSystem.m2;
+            const b = num === 1 ? currentSystem.b1 : currentSystem.b2;
+            
+            if (p1.x === p2.x) { userPoints.pop(); redrawLines(); return; }
+
+            const userM = (p2.y - p1.y) / (p2.x - p1.x);
+            const userB = p1.y - (userM * p1.x);
+
+            if (userM === m && userB === b) {
+                redrawLines();
+                if (num === 1) {
+                    // Just finished line 1 successfully
+                } else {
+                    // Finished line 2, draw it and end
+                    ctx.strokeStyle = "#ef4444"; ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(150 + (p1.x-10)*step, 150 - (p1.y + userM*(p1.x-10 - p1.x))*step);
+                    ctx.lineTo(150 + (p1.x+10)*step, 150 - (p1.y + userM*(p1.x+10 - p1.x))*step);
+                    ctx.stroke();
+                    finalize();
+                }
+            } else {
+                linearErrorCount++;
+                // Reset ONLY the current line's points
+                userPoints = (num === 1) ? [] : [userPoints[0], userPoints[1]];
+                redrawLines();
+                alert("That line is incorrect. Check your slope/intercept!");
             }
         }
     }
-}, 1000);
 
-// --- Adaptive Routing & Finish logic remains the same ---
-async function loadNextQuestion() {
-    if (window.isCurrentQActive) return;
-    window.currentQSeconds = 0; 
-    const feedback = document.getElementById('feedback-box');
-    if(feedback) {
-        feedback.style.display = 'none';
-        feedback.className = '';
+    function updateStatus() {
+        const el = document.getElementById('graph-status');
+        if (!el) return;
+        const msgs = ["Line 1: Plot Point 1", "Line 1: Plot Point 2", "Line 2: Plot Point 1", "Line 2: Plot Point 2"];
+        el.innerText = msgs[userPoints.length] || "Intersection Found!";
     }
-    
-    window.scrollTo(0,0);
 
-    const skillMap = [
-        { id: 'C6Transformation', fn: typeof initTransformationGame !== 'undefined' ? initTransformationGame : null },
-        { id: 'LinearSystem', fn: typeof initLinearSystemGame !== 'undefined' ? initLinearSystemGame : null },
-        { id: 'FigureGrowth', fn: typeof initFigureGrowthGame !== 'undefined' ? initFigureGrowthGame : null },
-        { id: 'SolveX', fn: typeof initSolveXGame !== 'undefined' ? initSolveXGame : null },
-        { id: 'BoxPlot', fn: typeof initBoxPlotGame !== 'undefined' ? initBoxPlotGame : null }
-    ].filter(s => s.fn !== null);
-
-    if (window.targetLesson === '6.2.4') {
-        if (!window.hasDonePrimaryLesson) {
-            window.hasDonePrimaryLesson = true;
-            window.skillsCompletedThisSession.push('C6Transformation');
-            return initTransformationGame();
+    async function finalize() {
+        const score = Math.max(1, 10 - linearErrorCount);
+        try {
+            await window.supabaseClient.from('assignment').update({ LinearSystem: score }).eq('userName', window.currentUser);
+        } catch (e) { console.error(e); }
+        
+        // Explicitly calling the function you confirmed
+        if (typeof window.loadNextQuestion === 'function') {
+            window.loadNextQuestion();
         }
-
-        const { data, error } = await window.supabaseClient
-            .from('assignment')
-            .select('*')
-            .eq('userName', window.currentUser)
-            .maybeSingle(); 
-
-        if (error || !data) {
-            return skillMap[Math.floor(Math.random() * skillMap.length)].fn();
-        }
-
-        let availableSkills = skillMap.filter(s => !window.skillsCompletedThisSession.includes(s.id));
-        if (availableSkills.length === 0) {
-            window.skillsCompletedThisSession = [];
-            availableSkills = skillMap;
-        }
-
-        availableSkills.sort((a, b) => (data[a.id] || 0) - (data[b.id] || 0));
-        const nextSkill = availableSkills[0];
-        window.skillsCompletedThisSession.push(nextSkill.id);
-        nextSkill.fn();
-
-    } else {
-        document.getElementById('q-title').innerText = "Under Construction";
-        document.getElementById('q-content').innerHTML = `Lesson ${window.targetLesson} is not yet available.`;
     }
 }
-
-async function finishAssignment() {
-    window.isCurrentQActive = false;
-    try {
-        await window.supabaseClient.from('assignment').update({ C624_Completed: true }).eq('userName', window.currentUser);
-        document.getElementById('work-area').innerHTML = `
-            <div style="text-align: center; padding: 40px; background: #f8fafc; border-radius: 12px; border: 2px solid #22c55e;">
-                <h1 style="color: #22c55e;">Goal Reached!</h1>
-                <p>Your 12 minutes of practice are logged.</p>
-                <button onclick="location.reload()" class="primary-btn">Start New Session</button>
-            </div>
-        `;
-    } catch (err) { console.error(err); }
-}
-
-window.onload = loadNextQuestion;
