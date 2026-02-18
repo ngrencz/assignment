@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dev Control | Dynamic Lesson Loader</title>
+    <title>Dev Control | Restored v1.6.5</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -16,245 +16,155 @@
 
     <style>
         :root { 
-            --panel-bg: #f8fafc; 
-            --border: #e2e8f0; 
-            --kelly-green: #4CBB17;
-            --danger: #ef4444;
-            --indigo: #6366f1;
-            --hub-blue: #0ea5e9;
+            --panel-bg: #f8fafc; --border: #e2e8f0; --kelly-green: #4CBB17;
+            --danger: #ef4444; --indigo: #6366f1; --hub-blue: #0ea5e9;
         }
-        body { padding: 0; margin: 0; font-family: 'Segoe UI', sans-serif; background-color: #f1f5f9; color: #1e293b; }
-        
-        /* Fixed Header */
-        .header-bar { display: flex; justify-content: space-between; align-items: center; padding: 15px 25px; background: white; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 100; }
-        
-        .grid { display: grid; grid-template-columns: 400px 1fr; gap: 20px; padding: 20px; align-items: start; }
-        .card { background: white; border: 1px solid var(--border); padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgb(0 0 0 / 0.05); margin-bottom: 20px; }
-        
-        /* Logging Area */
-        .log-box { background: #1a1a1a; color: var(--kelly-green); padding: 15px; font-family: monospace; border-radius: 8px; height: 300px; overflow-y: auto; font-size: 12px; border: 1px solid #333; }
-        
-        /* UI Components */
-        .slider-group { margin: 12px 0; }
-        .slider-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-        .section-tag { color: var(--hub-blue); text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px; margin-bottom: 12px; display: block; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 4px;}
-        
+        body { padding: 0; margin: 0; font-family: 'Segoe UI', sans-serif; background: #f1f5f9; }
+        .header-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: white; border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 100; }
+        .grid { display: grid; grid-template-columns: 420px 1fr; gap: 20px; padding: 20px; }
+        .card { background: white; border: 1px solid var(--border); padding: 18px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .log-box { background: #1a1a1a; color: var(--kelly-green); padding: 15px; font-family: monospace; border-radius: 8px; height: 350px; overflow-y: auto; font-size: 12px; }
+        .slider-group { margin: 10px 0; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
+        .section-tag { color: var(--hub-blue); text-transform: uppercase; font-size: 11px; font-weight: bold; display: block; margin-bottom: 10px; border-bottom: 1px solid #eee; }
         input[type="range"] { width: 100%; accent-color: var(--kelly-green); cursor: pointer; }
-        button { cursor: pointer; transition: all 0.2s; font-weight: bold; padding: 12px; border-radius: 8px; border: none; font-size: 13px; width: 100%; }
-        button:hover { filter: brightness(90%); }
-        select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 15px; background: #fff; font-weight: bold; }
-        
+        button { cursor: pointer; font-weight: bold; padding: 10px; border-radius: 8px; border: none; width: 100%; margin-top: 5px; }
+        select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 10px; background: #fff; }
         details { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-top: 10px; }
-        summary { cursor: pointer; font-weight: bold; font-size: 13px; color: #334155; }
-        hr { border: 0; border-top: 1px solid var(--border); margin: 10px 0; }
-        
-        .status-pill { background: #334155; color: white; padding: 4px 12px; border-radius: 20px; font-size: 11px; }
+        summary { cursor: pointer; font-weight: bold; font-size: 13px; }
     </style>
 </head>
 <body>
 
-    <div class="header-bar">
-        <div>
-            <h1 style="margin:0; font-size: 22px;">Hub <span style="color: var(--hub-blue);">Navigator</span></h1>
-        </div>
-        <div style="display: flex; gap: 20px; align-items: center;">
-            <div class="status-pill">Target: <b>test_user</b> (Hour 0)</div>
-            <button onclick="ensureTestUser()" style="width: auto; padding: 6px 15px; background: var(--kelly-green); color: white;">Refresh Connection</button>
-        </div>
-    </div>
+<div class="header-bar">
+    <h1 style="margin:0; font-size: 20px;">Module <span style="color:var(--kelly-green)">Troubleshooter</span></h1>
+    <div style="font-size: 13px;">Target: <b>test_user</b> | <b>v1.6.5</b></div>
+</div>
 
-    <div class="grid">
-        <div class="control-stack">
-            
-            <div class="card" style="border-top: 4px solid var(--hub-blue);">
-                <span class="section-tag">Lesson Selection</span>
-                <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 5px;">Active Assignment:</label>
-                <select id="lesson-selector" onchange="handleLessonChange()">
-                    <option value="">-- Select Lesson --</option>
-                    <option value="C6Review">C6Review (Combined Practice)</option>
+<div class="grid">
+    <div class="control-stack">
+        
+        <div class="card" style="border-top: 4px solid var(--indigo);">
+            <span class="section-tag">1. Troubleshooting: Force Load</span>
+            <select id="module-selector">
+                <option value="SolveX">SolveX</option>
+                <option value="C6Transformation">Transformations</option>
+                <option value="LinearSystem">Linear Systems</option>
+                <option value="FigureGrowth">Figure Growth</option>
+                <option value="BoxPlot">Box Plots</option>
+                <option value="HubAssignment">Hub (Combined Lesson)</option>
+            </select>
+            <button onclick="forceLoadModule()" style="background: var(--indigo); color: white;">🚀 Force Launch Module</button>
+        </div>
+
+        <div class="card" style="border-top: 4px solid var(--hub-blue);">
+            <span class="section-tag">2. Lesson Context (Assignment State)</span>
+            <select id="lesson-selector" onchange="syncUIWithLesson()">
+                <option value="">-- Choose Lesson to Debug --</option>
+                <option value="C6Review">C6Review</option>
+            </select>
+            <div id="assign-state-ui" style="display:none; background:#e0f2fe; padding:10px; border-radius:8px;">
+                <label style="font-size:12px;"><b>C6Review</b> Bool State:</label>
+                <select id="bool-toggle" onchange="updateAssignmentBool()" style="margin:0;">
+                    <option value="false">False (Unassigned)</option>
+                    <option value="true">True (Assigned)</option>
                 </select>
-                
-                <div id="lesson-status-box" style="display:none;">
-                    <label style="font-size: 11px;">DB Assignment State:</label>
-                    <select id="bool-assign-toggle" onchange="updateLessonBool()" style="padding: 5px;">
-                        <option value="false">Inactive (False)</option>
-                        <option value="true">Active (True)</option>
-                    </select>
-                </div>
-            </div>
-
-            <div id="skill-container" style="display:none;">
-                <div class="card">
-                    <span class="section-tag" id="skill-header">C6 Skills Mastery</span>
-                    
-                    <div class="slider-group"><div class="slider-label">SolveX <span id="v-SolveX">0</span></div><input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')"></div>
-                    <div class="slider-group"><div class="slider-label">Linear System <span id="v-LinearSystem">0</span></div><input type="range" id="s-LinearSystem" min="0" max="10" value="0" oninput="updateVal('LinearSystem')"></div>
-                    <div class="slider-group"><div class="slider-label">Figure Growth <span id="v-FigureGrowth">0</span></div><input type="range" id="s-FigureGrowth" min="0" max="10" value="0" oninput="updateVal('FigureGrowth')"></div>
-
-                    <details>
-                        <summary>Box Plot Mastery: <span id="agg-BoxPlot">0</span></summary>
-                        <div style="padding-top: 10px; display: grid; gap: 8px;">
-                            <input type="range" id="s-BoxPlot" min="0" max="10" value="0" oninput="updateVal('BoxPlot')">
-                            <hr>
-                            <div><div class="slider-label" style="font-size:11px;">Median <span id="v-BoxPlotMedian">0</span></div><input type="range" id="s-BoxPlotMedian" min="0" max="10" value="0" oninput="updateVal('BoxPlotMedian')"></div>
-                            <div><div class="slider-label" style="font-size:11px;">IQR <span id="v-BoxPlotIQR">0</span></div><input type="range" id="s-BoxPlotIQR" min="0" max="10" value="0" oninput="updateVal('BoxPlotIQR')"></div>
-                            <div><div class="slider-label" style="font-size:11px;">Outliers <span id="v-BoxPlotOutlier">0</span></div><input type="range" id="s-BoxPlotOutlier" min="0" max="10" value="0" oninput="updateVal('BoxPlotOutlier')"></div>
-                        </div>
-                    </details>
-
-                    <details>
-                        <summary>Transformation Mastery: <span id="agg-C6Transformation">0</span></summary>
-                        <div style="padding-top: 10px; display: grid; gap: 8px;">
-                            <input type="range" id="s-C6Transformation" min="0" max="10" value="0" oninput="updateVal('C6Transformation')">
-                            <hr>
-                            <div><div class="slider-label" style="font-size:11px;">Translation <span id="v-C6Translation">0</span></div><input type="range" id="s-C6Translation" min="0" max="10" value="0" oninput="updateVal('C6Translation')"></div>
-                            <div><div class="slider-label" style="font-size:11px;">Reflect X <span id="v-C6ReflectionX">0</span></div><input type="range" id="s-C6ReflectionX" min="0" max="10" value="0" oninput="updateVal('C6ReflectionX')"></div>
-                            <div><div class="slider-label" style="font-size:11px;">Reflect Y <span id="v-C6ReflectionY">0</span></div><input type="range" id="s-C6ReflectionY" min="0" max="10" value="0" oninput="updateVal('C6ReflectionY')"></div>
-                            <div><div class="slider-label" style="font-size:11px;">Rotation <span id="v-C6Rotation">0</span></div><input type="range" id="s-C6Rotation" min="0" max="10" value="0" oninput="updateVal('C6Rotation')"></div>
-                            <div><div class="slider-label" style="font-size:11px;">Dilation <span id="v-C6Dilation">0</span></div><input type="range" id="s-C6Dilation" min="0" max="10" value="0" oninput="updateVal('C6Dilation')"></div>
-                        </div>
-                    </details>
-                </div>
-
-                <div class="card">
-                    <span class="section-tag">Execution</span>
-                    <button onclick="runHubLesson()" style="background: var(--indigo); color: white;">🚀 Start Combined Hub Lesson</button>
-                    <button onclick="resetSession()" style="background: var(--danger); color: white; margin-top: 10px;">Reset All Skill Progress</button>
-                </div>
             </div>
         </div>
 
-        <div class="main-stack">
-            <div class="card">
-                <span class="section-tag">System Log</span>
-                <div id="log" class="log-box">Select a Lesson to begin...</div>
-            </div>
-            <div class="card" style="min-height: 450px;">
-                <div id="work-area"><div id="q-content"></div></div>
-            </div>
+        <div class="card">
+            <span class="section-tag">3. Skill/Aggregate Control</span>
+            <div class="slider-group"><div class="slider-label">SolveX <span id="v-SolveX">0</span></div><input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')"></div>
+            <div class="slider-group"><div class="slider-label">Linear System <span id="v-LinearSystem">0</span></div><input type="range" id="s-LinearSystem" min="0" max="10" value="0" oninput="updateVal('LinearSystem')"></div>
+            <div class="slider-group"><div class="slider-label">Figure Growth <span id="v-FigureGrowth">0</span></div><input type="range" id="s-FigureGrowth" min="0" max="10" value="0" oninput="updateVal('FigureGrowth')"></div>
+
+            <details open>
+                <summary>Box Plot Mastery: <span id="agg-BoxPlot">0</span></summary>
+                <div style="padding-top:10px;">
+                    <input type="range" id="s-BoxPlot" min="0" max="10" value="0" oninput="updateVal('BoxPlot')">
+                    <hr>
+                    <div class="slider-label" style="font-size:11px;">Median <span id="v-BoxPlotMedian">0</span></div><input type="range" id="s-BoxPlotMedian" min="0" max="10" value="0" oninput="updateVal('BoxPlotMedian')">
+                    <div class="slider-label" style="font-size:11px;">IQR <span id="v-BoxPlotIQR">0</span></div><input type="range" id="s-BoxPlotIQR" min="0" max="10" value="0" oninput="updateVal('BoxPlotIQR')">
+                    <div class="slider-label" style="font-size:11px;">Outliers <span id="v-BoxPlotOutlier">0</span></div><input type="range" id="s-BoxPlotOutlier" min="0" max="10" value="0" oninput="updateVal('BoxPlotOutlier')">
+                </div>
+            </details>
+
+            <details open>
+                <summary>Transformation Mastery: <span id="agg-C6Transformation">0</span></summary>
+                <div style="padding-top:10px;">
+                    <input type="range" id="s-C6Transformation" min="0" max="10" value="0" oninput="updateVal('C6Transformation')">
+                    <hr>
+                    <div class="slider-label" style="font-size:11px;">Translation <span id="v-C6Translation">0</span></div><input type="range" id="s-C6Translation" min="0" max="10" value="0" oninput="updateVal('C6Translation')">
+                    <div class="slider-label" style="font-size:11px;">Rotation <span id="v-C6Rotation">0</span></div><input type="range" id="s-C6Rotation" min="0" max="10" value="0" oninput="updateVal('C6Rotation')">
+                    <div class="slider-label" style="font-size:11px;">Reflect X <span id="v-C6ReflectionX">0</span></div><input type="range" id="s-C6ReflectionX" min="0" max="10" value="0" oninput="updateVal('C6ReflectionX')">
+                    <div class="slider-label" style="font-size:11px;">Reflect Y <span id="v-C6ReflectionY">0</span></div><input type="range" id="s-C6ReflectionY" min="0" max="10" value="0" oninput="updateVal('C6ReflectionY')">
+                    <div class="slider-label" style="font-size:11px;">Dilation <span id="v-C6Dilation">0</span></div><input type="range" id="s-C6Dilation" min="0" max="10" value="0" oninput="updateVal('C6Dilation')">
+                </div>
+            </details>
         </div>
+        <button onclick="resetData()" style="background:var(--danger); color:white;">Clear test_user Data</button>
     </div>
 
-    <script>
-        window.currentUser = 'test_user';
-        window.currentHour = 0; 
-        const TABLE_NAME = 'assignment';
+    <div class="main-stack">
+        <div class="card"><span class="section-tag">System Log</span><div id="log" class="log-box">Ready...</div></div>
+        <div class="card" style="min-height:500px;"><div id="work-area"><div id="q-content"></div></div></div>
+    </div>
+</div>
 
-        const SKILLS_MAP = {
-            'C6Review': [
-                'SolveX', 'LinearSystem', 'FigureGrowth', 
-                'BoxPlot', 'BoxPlotMedian', 'BoxPlotIQR', 'BoxPlotOutlier',
-                'C6Transformation', 'C6Translation', 'C6ReflectionX', 
-                'C6ReflectionY', 'C6Rotation', 'C6Dilation'
-            ]
+<script>
+    const TABLE = 'assignment';
+    const ALL_COLS = ['SolveX','LinearSystem','FigureGrowth','BoxPlot','BoxPlotMedian','BoxPlotIQR','BoxPlotOutlier','C6Transformation','C6Translation','C6ReflectionX','C6ReflectionY','C6Rotation','C6Dilation','C6Review'];
+
+    function log(m) { const l=document.getElementById('log'); l.innerHTML+=`<br>[${new Date().toLocaleTimeString()}] ${m}`; l.scrollTop=l.scrollHeight; }
+
+    async function syncUIWithLesson() {
+        const lesson = document.getElementById('lesson-selector').value;
+        document.getElementById('assign-state-ui').style.display = lesson ? 'block' : 'none';
+        
+        const { data } = await window.supabaseClient.from(TABLE).select('*').eq('userName', 'test_user').eq('hour', 0).maybeSingle();
+        if(!data) return;
+
+        if(lesson) document.getElementById('bool-toggle').value = data[lesson]?.toString() || 'false';
+        
+        ALL_COLS.forEach(c => {
+            const s = document.getElementById('s-'+c), v = document.getElementById('v-'+c), a = document.getElementById('agg-'+c);
+            const val = data[c] ?? 0;
+            if(s) s.value = val;
+            if(v) v.innerText = val;
+            if(a) a.innerText = val;
+        });
+        log(`Synced UI for ${lesson || 'Global State'}`);
+    }
+
+    async function updateVal(id) {
+        const val = parseInt(document.getElementById('s-'+id).value);
+        document.getElementById('v-'+id).innerText = val;
+        if(document.getElementById('agg-'+id)) document.getElementById('agg-'+id).innerText = val;
+        await window.supabaseClient.from(TABLE).update({ [id]: val }).eq('userName', 'test_user').eq('hour', 0);
+        log(`Update: ${id} -> ${val}`);
+    }
+
+    async function updateAssignmentBool() {
+        const lesson = document.getElementById('lesson-selector').value;
+        const val = document.getElementById('bool-toggle').value === 'true';
+        await window.supabaseClient.from(TABLE).update({ [lesson]: val }).eq('userName', 'test_user').eq('hour', 0);
+        log(`Boolean Update: ${lesson} -> ${val}`);
+    }
+
+    function forceLoadModule() {
+        const mod = document.getElementById('module-selector').value;
+        const map = {
+            'C6Transformation': window.initTransformationGame,
+            'LinearSystem': window.initLinearSystemGame,
+            'FigureGrowth': window.initFigureGrowthGame,
+            'SolveX': window.initSolveXGame,
+            'BoxPlot': window.initBoxPlotGame,
+            'HubAssignment': window.initHubAssignment
         };
+        if(map[mod]) { window.isCurrentQActive = true; map[mod](); log(`🚀 Forced Loading: ${mod}`); }
+    }
 
-        function log(msg, isError = false) {
-            const l = document.getElementById('log');
-            l.innerHTML += `<br><span style="color:${isError ? '#ff4d4d' : 'inherit'};">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
-            l.scrollTop = l.scrollHeight;
-        }
-
-        async function handleLessonChange() {
-            const lesson = document.getElementById('lesson-selector').value;
-            if (!lesson) {
-                document.getElementById('skill-container').style.display = 'none';
-                document.getElementById('lesson-status-box').style.display = 'none';
-                return;
-            }
-
-            document.getElementById('skill-container').style.display = 'block';
-            document.getElementById('lesson-status-box').style.display = 'block';
-            document.getElementById('skill-header').innerText = `${lesson} Skillset`;
-            log(`📖 Loading Lesson Context: ${lesson}`);
-            await ensureTestUser();
-        }
-
-        async function ensureTestUser() {
-            if (typeof supabaseClient === 'undefined') { setTimeout(ensureTestUser, 1000); return; }
-            window.supabaseClient = supabaseClient;
-            const lesson = document.getElementById('lesson-selector').value;
-            
-            try {
-                let { data, error } = await window.supabaseClient
-                    .from(TABLE_NAME)
-                    .select('*')
-                    .eq('userName', window.currentUser)
-                    .eq('hour', window.currentHour)
-                    .maybeSingle();
-
-                if (error) throw error;
-                
-                // If user doesn't exist, we provision them with 0s
-                if (!data) {
-                    log("Creating fresh entry for new user...");
-                    const newRow = { userName: window.currentUser, hour: window.currentHour, C6Review: false };
-                    SKILLS_MAP['C6Review'].forEach(s => newRow[s] = 0);
-                    const { data: created } = await window.supabaseClient.from(TABLE_NAME).insert([newRow]).select().single();
-                    data = created;
-                }
-
-                if (lesson) {
-                    // 1. Sync the Lesson Assignment Boolean
-                    const isAssigned = data[lesson] === true; // Strict boolean check
-                    document.getElementById('bool-assign-toggle').value = isAssigned.toString();
-                    
-                    // 2. Sync the specific skills for this lesson
-                    SKILLS_MAP[lesson].forEach(col => {
-                        const slider = document.getElementById('s-' + col);
-                        const label = document.getElementById('v-' + col);
-                        const aggLabel = document.getElementById('agg-' + col);
-                        
-                        // STRICT NULL HANDLING: 
-                        // If DB value is null/undefined, we treat as 0. 
-                        // This prevents the "Default 5" behavior.
-                        const dbValue = (data[col] === null || data[col] === undefined) ? 0 : data[col];
-
-                        if (slider) slider.value = dbValue;
-                        if (label) label.innerText = dbValue;
-                        if (aggLabel) aggLabel.innerText = dbValue;
-                    });
-                }
-                log("✅ DB State Loaded (Nulls forced to 0).");
-            } catch (err) { log(`❌ Error: ${err.message}`, true); }
-        }
-
-        async function updateLessonBool() {
-            const lesson = document.getElementById('lesson-selector').value;
-            const val = document.getElementById('bool-assign-toggle').value === 'true';
-            await window.supabaseClient.from(TABLE_NAME).update({ [lesson]: val }).eq('userName', window.currentUser).eq('hour', window.currentHour);
-            log(`📡 Lesson '${lesson}' set to ${val}`);
-        }
-
-        async function updateVal(id) {
-            const val = parseInt(document.getElementById('s-' + id).value);
-            document.getElementById('v-' + id).innerText = val;
-            const agg = document.getElementById('agg-' + id);
-            if (agg) agg.innerText = val;
-
-            await window.supabaseClient.from(TABLE_NAME).update({ [id]: val }).eq('userName', window.currentUser).eq('hour', window.currentHour);
-            log(`📡 Syncing ${id} -> ${val}`);
-        }
-
-        function runHubLesson() {
-            const lesson = document.getElementById('lesson-selector').value;
-            if (lesson === 'C6Review' && window.initHubAssignment) {
-                window.isCurrentQActive = true;
-                window.initHubAssignment(); 
-                log("🚀 Running Combined Hub Lesson (C6Review)");
-            }
-        }
-
-        async function resetSession() {
-            if (!confirm("Reset all skill progress?")) return;
-            const lesson = document.getElementById('lesson-selector').value;
-            const resetObj = {};
-            SKILLS_MAP[lesson].forEach(s => resetObj[s] = 0);
-            await window.supabaseClient.from(TABLE_NAME).update(resetObj).eq('userName', window.currentUser).eq('hour', window.currentHour);
-            ensureTestUser();
-        }
-
-        window.onload = () => log("Awaiting selection...");
-    </script>
+    window.onload = () => { setTimeout(syncUIWithLesson, 1000); };
+</script>
 </body>
 </html>
