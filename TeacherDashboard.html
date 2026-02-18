@@ -1,32 +1,142 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chapter 6 Review Gradebook</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <link rel="stylesheet" href="style.css">
+
     <style>
-        .dashboard-container { max-width: 900px; margin: 40px auto; font-family: sans-serif; }
-        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 10px; }
-        #searchBar { padding: 10px; border: 1px solid var(--gray-med); border-radius: 5px; flex-grow: 1; }
+        /* --- Dashboard Specific Overrides --- */
+        body {
+            background-color: var(--soft-white);
+            font-family: 'Segoe UI', sans-serif; /* Fallback if global font fails */
+        }
+
+        .dashboard-container { 
+            max-width: 900px; 
+            margin: 40px auto; 
+        }
+
+        .controls { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 25px; 
+            gap: 15px; 
+            background: var(--pure-white);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--gray-med);
+        }
+
+        #searchBar { 
+            padding: 12px; 
+            border: 2px solid var(--gray-med); 
+            border-radius: 10px; 
+            flex-grow: 1; 
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        #searchBar:focus {
+            border-color: var(--kelly-green);
+            outline: none;
+        }
         
-        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        th { background: var(--black); color: white; cursor: pointer; padding: 15px; text-align: left; }
-        th:hover { background: #333; }
-        td { padding: 12px; border-bottom: 1px solid var(--gray-med); }
+        /* Table Styling */
+        table { 
+            width: 100%; 
+            border-collapse: separate; 
+            border-spacing: 0; 
+            background: var(--pure-white); 
+            border-radius: var(--border-radius); 
+            overflow: hidden; 
+            box-shadow: var(--shadow); 
+            border: 1px solid var(--gray-med);
+        }
+
+        th { 
+            background: var(--black); 
+            color: var(--pure-white); 
+            cursor: pointer; 
+            padding: 18px; 
+            text-align: left; 
+            font-weight: 600;
+            user-select: none;
+            border-bottom: 4px solid var(--kelly-green); /* Accent line */
+        }
+
+        th:hover { 
+            background: #333; 
+        }
+
+        td { 
+            padding: 15px; 
+            border-bottom: 1px solid var(--gray-med); 
+            color: var(--black);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: var(--soft-white);
+        }
         
-        .complete { color: var(--kelly-green); font-weight: bold; }
-        .pending { color: var(--gray-text); font-style: italic; opacity: 0.7; }
-        .summary-pill { background: var(--gray-light); padding: 5px 15px; border-radius: 20px; font-weight: bold; border: 1px solid var(--gray-med); }
+        /* Status Badges */
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .complete { 
+            background-color: #dcfce7; 
+            color: #166534; 
+            border: 1px solid var(--kelly-green);
+        }
+
+        .pending { 
+            background-color: var(--gray-light); 
+            color: var(--gray-text); 
+            border: 1px solid var(--gray-med);
+        }
+
+        .summary-pill { 
+            background: var(--kelly-green); 
+            color: white; 
+            padding: 10px 20px; 
+            border-radius: 12px; 
+            font-weight: bold; 
+            box-shadow: 0 4px 6px rgba(76, 187, 23, 0.3);
+        }
     </style>
 </head>
 <body class="dashboard-container">
 
-    <h1>Chapter 6 Review <span class="accent-text">Completion Tracker</span></h1>
+    <div style="text-align:center; margin-bottom:30px;">
+        <h1 style="margin-bottom:5px;">Chapter 6 Review <span class="accent-text">Gradebook</span></h1>
+        <div style="color:var(--gray-text);">Live completion tracking for your classroom</div>
+    </div>
 
     <div class="controls">
-        <input type="text" id="searchBar" onkeyup="filterTable()" placeholder="Search for a student name...">
-        <div class="summary-pill">Finished: <span id="finished-count">0</span></div>
-        <button onclick="loadGrades()">Refresh Data</button>
+        <input type="text" id="searchBar" onkeyup="filterTable()" placeholder="🔍 Search student name...">
+        
+        <div class="summary-pill">
+            Finished: <span id="finished-count">0</span>
+        </div>
+        
+        <button onclick="loadGrades()" style="width:auto; margin:0;">
+            ↻ Refresh Data
+        </button>
     </div>
     
     <table id="gradeTable">
@@ -38,42 +148,64 @@
             </tr>
         </thead>
         <tbody id="grade-body">
-            <tr><td colspan="3">Loading classroom data...</td></tr>
+            <tr><td colspan="3" style="text-align:center; padding:30px; color:var(--gray-text);">Loading classroom data...</td></tr>
         </tbody>
     </table>
 
     <script>
-        // --- Supabase Configuration (Updated with your keys) ---
+        // --- Supabase Configuration ---
         const SB_URL = "https://khazeoycsjdqnmwodncw.supabase.co";
         const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoYXplb3ljc2pkcW5td29kbmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MDMwOTMsImV4cCI6MjA3ODQ3OTA5M30.h-WabaGcQZ968sO2ImetccUaRihRFmO2mUKCdPiAbEI";
         const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
         async function loadGrades() {
-            // UPDATED: Select 'C6Review' instead of 'C624_Completed'
+            const btn = document.querySelector('button');
+            const originalText = btn.innerText;
+            btn.innerText = "Loading...";
+            
+            // Select 'C6Review' column
             const { data, error } = await supabaseClient
                 .from('assignment')
                 .select('userName, C6Review, updated_at');
 
-            if (error) return console.error("Fetch error:", error);
+            btn.innerText = originalText;
+
+            if (error) {
+                console.error("Fetch error:", error);
+                document.getElementById('grade-body').innerHTML = `<tr><td colspan="3" style="color:red; text-align:center;">Error loading data. Check console.</td></tr>`;
+                return;
+            }
 
             let finished = 0;
             const body = document.getElementById('grade-body');
             
+            if(data.length === 0) {
+                 body.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:20px;">No students found.</td></tr>`;
+                 return;
+            }
+
             body.innerHTML = data.map(row => {
-                // Check the C6Review column
-                if(row.C6Review) finished++;
+                const isDone = row.C6Review === true;
+                if(isDone) finished++;
                 
-                const completionTime = row.C6Review ? 
+                const completionTime = isDone ? 
                     new Date(row.updated_at).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) : 
                     "—";
                 
+                // For sorting, we use a data-attribute for raw timestamp
+                const rawTime = isDone ? new Date(row.updated_at).getTime() : 0;
+
                 return `
                     <tr>
-                        <td><strong>${row.userName}</strong></td>
-                        <td class="${row.C6Review ? 'complete' : 'pending'}">
-                            ${row.C6Review ? '✅ Complete' : '⏳ In Progress'}
+                        <td style="font-weight:600;">${row.userName}</td>
+                        <td>
+                            <span class="status-badge ${isDone ? 'complete' : 'pending'}">
+                                ${isDone ? '✅ Complete' : '⏳ In Progress'}
+                            </span>
                         </td>
-                        <td data-time="${row.updated_at || ''}">${completionTime}</td>
+                        <td data-time="${rawTime}" style="font-family:monospace; color:var(--gray-text);">
+                            ${completionTime}
+                        </td>
                     </tr>
                 `;
             }).join('');
@@ -85,7 +217,11 @@
             const input = document.getElementById("searchBar").value.toUpperCase();
             const rows = document.getElementById("grade-body").getElementsByTagName("tr");
             for (let i = 0; i < rows.length; i++) {
-                const nameCell = rows[i].getElementsByTagName("td")[0];
+                // Skip if it's a loading/empty message row
+                const cells = rows[i].getElementsByTagName("td");
+                if (cells.length < 2) continue;
+
+                const nameCell = cells[0];
                 if (nameCell) {
                     const textValue = nameCell.textContent || nameCell.innerText;
                     rows[i].style.display = textValue.toUpperCase().indexOf(input) > -1 ? "" : "none";
@@ -98,16 +234,31 @@
             let rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
             switching = true;
             dir = "asc"; 
+            
             while (switching) {
                 switching = false;
                 rows = table.rows;
+                // Loop through all table rows (except the first, which contains table headers)
                 for (i = 1; i < (rows.length - 1); i++) {
                     shouldSwitch = false;
+                    
                     x = rows[i].getElementsByTagName("TD")[n];
                     y = rows[i + 1].getElementsByTagName("TD")[n];
                     
-                    let valX = n === 2 ? x.getAttribute('data-time') : x.innerText.toLowerCase();
-                    let valY = n === 2 ? y.getAttribute('data-time') : y.innerText.toLowerCase();
+                    // Guard clause for loading rows or empty rows
+                    if (!x || !y) continue;
+
+                    // Get values
+                    let valX, valY;
+                    if (n === 2) { 
+                        // Time column: use data attribute
+                        valX = parseInt(x.getAttribute('data-time')) || 0;
+                        valY = parseInt(y.getAttribute('data-time')) || 0;
+                    } else {
+                        // Text columns
+                        valX = x.innerText.toLowerCase();
+                        valY = y.innerText.toLowerCase();
+                    }
 
                     if (dir == "asc") {
                         if (valX > valY) { shouldSwitch = true; break; }
@@ -115,13 +266,16 @@
                         if (valX < valY) { shouldSwitch = true; break; }
                     }
                 }
+                
                 if (shouldSwitch) {
                     rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
                     switching = true;
-                    switchcount ++;      
-                } else if (switchcount == 0 && dir == "asc") {
-                    dir = "desc";
-                    switching = true;
+                    switchcount++;      
+                } else {
+                    if (switchcount == 0 && dir == "asc") {
+                        dir = "desc";
+                        switching = true;
+                    }
                 }
             }
         }
