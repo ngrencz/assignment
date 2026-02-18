@@ -1,8 +1,9 @@
 /**
  * skill_complexshapes.js - Single Round Series Version
- * - Generates a composite figure (2-3 parts: rectangles, triangles, semicircles).
+ * - Generates complex composite figures from random combinations of:
+ * Rectangles, Squares, Trapezoids, Triangles, and Semicircles.
  * - Requires both Area and Perimeter to be correct.
- * - Handles unit validation (linear vs square).
+ * - Random units and side lengths (0-200).
  * - Clickable hint regions for formulas.
  */
 
@@ -13,18 +14,14 @@ var complexData = {
     unit: 'units',
 };
 
-var complexRound = 1; 
-
 window.initComplexShapesGame = async function() {
     if (!document.getElementById('q-content')) return;
 
     window.isCurrentQActive = true;
     window.currentQSeconds = 0;
 
-    // Reset progress tracking
     if (!window.userProgress) window.userProgress = {};
 
-    // Fetch existing progress from Supabase
     try {
         if (window.supabaseClient && window.currentUser) {
             const { data } = await window.supabaseClient
@@ -52,46 +49,62 @@ function generateComplexProblem() {
     complexData.unit = units[Math.floor(Math.random() * units.length)];
     complexData.components = [];
     
-    // 1. Foundation Rectangle (Base)
-    let baseW = Math.floor(Math.random() * 80) + 40;
-    let baseH = Math.floor(Math.random() * 50) + 30;
+    // 1. Foundation Shape (Rectangle or Square)
+    let isSquare = Math.random() > 0.7;
+    let baseW = Math.floor(Math.random() * 100) + 50;
+    let baseH = isSquare ? baseW : Math.floor(Math.random() * 60) + 40;
     
     complexData.components.push({
-        type: 'rectangle',
-        w: baseW, h: baseH, x: 80, y: 120,
+        type: isSquare ? 'square' : 'rectangle',
+        w: baseW, h: baseH, x: 100, y: 130,
         area: baseW * baseH,
-        hintA: `Area of Rectangle = L × W (${baseW} × ${baseH})`,
-        hintP: `Perimeter is the distance around the outside edges.`
+        hintA: isSquare ? `Area of Square = s² (${baseW} × ${baseW})` : `Area of Rectangle = L × W (${baseW} × ${baseH})`,
+        hintP: `Perimeter is the sum of all OUTER edges.`
     });
 
-    // 2. Add a sub-shape (Triangle or Semicircle)
-    let type = Math.random() > 0.5 ? 'triangle' : 'semicircle';
-    let attachX = 80 + baseW;
-    let attachY = 120;
+    // 2. Add an attachment (Triangle, Semicircle, or Trapezoid)
+    let typePool = ['triangle', 'semicircle', 'trapezoid'];
+    let type = typePool[Math.floor(Math.random() * typePool.length)];
+    let attachX = 100 + baseW;
+    let attachY = 130;
 
     if (type === 'triangle') {
-        let triH = Math.floor(Math.random() * 40) + 20;
+        let triH = Math.floor(Math.random() * 50) + 30;
+        let hyp = Math.sqrt(Math.pow(baseH, 2) + Math.pow(triH, 2));
         complexData.components.push({
             type: 'triangle', base: baseH, height: triH, x: attachX, y: attachY,
             area: 0.5 * baseH * triH,
-            // Hypotenuse for perimeter logic
-            sideC: Math.sqrt(Math.pow(baseH, 2) + Math.pow(triH, 2)),
-            hintA: `Area of Triangle = ½ × base × height (½ × ${baseH} × ${triH})`,
-            hintP: `Remember: Use the Pythagorean theorem for slanted edges!`
+            hintA: `Area of Triangle = ½ × b × h (½ × ${baseH} × ${triH})`,
+            hintP: `Slanted edge (hypotenuse) ≈ ${hyp.toFixed(1)}`
         });
-        // Calculation logic (Simplified for composite)
         complexData.totalArea = (baseW * baseH) + (0.5 * baseH * triH);
-        complexData.totalPerimeter = (baseW * 2) + triH + Math.sqrt(Math.pow(baseH, 2) + Math.pow(triH, 2));
-    } else {
+        complexData.totalPerimeter = (baseW * 2) + triH + hyp;
+
+    } else if (type === 'semicircle') {
         let r = baseH / 2;
+        let arc = Math.PI * r;
         complexData.components.push({
             type: 'semicircle', r: r, x: attachX, y: attachY + r,
             area: (Math.PI * Math.pow(r, 2)) / 2,
-            hintA: `Area of Semicircle = (π × r²) / 2 (Radius: ${r})`,
-            hintP: `Arc Length = π × r. Only add outer edges!`
+            hintA: `Area of Semicircle = (π × r²) / 2 (r = ${r})`,
+            hintP: `Curved edge = π × r ≈ ${arc.toFixed(1)}`
         });
         complexData.totalArea = (baseW * baseH) + ((Math.PI * Math.pow(r, 2)) / 2);
-        complexData.totalPerimeter = (baseW * 2) + baseH + (Math.PI * r);
+        complexData.totalPerimeter = (baseW * 2) + baseH + arc;
+
+    } else if (type === 'trapezoid') {
+        let topB = Math.floor(baseH * 0.6);
+        let trapW = Math.floor(Math.random() * 40) + 20;
+        // Simplified area for right-trapezoid attached to side
+        complexData.components.push({
+            type: 'trapezoid', b1: baseH, b2: topB, h: trapW, x: attachX, y: attachY,
+            area: 0.5 * (baseH + topB) * trapW,
+            hintA: `Area of Trapezoid = ½(b1 + b2) × h`,
+            hintP: `Sum all exterior sides. Don't count the shared middle wall!`
+        });
+        let slant = Math.sqrt(Math.pow(trapW, 2) + Math.pow(baseH - topB, 2));
+        complexData.totalArea = (baseW * baseH) + (0.5 * (baseH + topB) * trapW);
+        complexData.totalPerimeter = (baseW * 2) + topB + trapW + slant;
     }
 }
 
@@ -99,25 +112,25 @@ function renderComplexUI() {
     const qContent = document.getElementById('q-content');
     if (!qContent) return;
 
-    document.getElementById('q-title').innerText = `Complex Shapes (Mixed Review)`;
+    document.getElementById('q-title').innerText = `Complex Shapes: Area & Perimeter`;
 
     qContent.innerHTML = `
         <div style="display: flex; gap: 20px; flex-wrap: wrap; position: relative;">
             <div style="background: white; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1;">
-                <canvas id="complexCanvas" width="450" height="350" style="cursor: help;"></canvas>
+                <canvas id="complexCanvas" width="480" height="380" style="cursor: help;"></canvas>
                 <div id="hint-bubble" style="position: absolute; display: none; background: #1e293b; color: white; padding: 10px; border-radius: 6px; font-size: 13px; z-index: 50; pointer-events:none; box-shadow: 0 4px 6px rgba(0,0,0,0.3);"></div>
-                <p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 5px;">Click parts of the shape for formula hints!</p>
+                <p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 5px;">Click a shape for hints!</p>
             </div>
 
-            <div style="flex: 1; min-width: 280px; background: #f1f5f9; padding: 20px; border-radius: 10px; border: 1px solid #e2e8f0;">
-                <h3 style="margin: 0 0 10px 0; color: #1e293b;">Shape Analysis</h3>
-                <p style="font-size: 13px; margin-bottom: 15px;">Solve for both properties. Round to 1 decimal.</p>
+            <div style="flex: 1; min-width: 280px; background: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                <h3 style="margin: 0 0 10px 0; color: #1e293b;">Final Totals</h3>
+                <p style="font-size: 13px; margin-bottom: 15px;">Units must match the property (Linear vs Square).</p>
 
-                <div style="background: white; padding: 10px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2563eb;">
-                    <label style="font-weight:bold; font-size:11px; color:#2563eb;">PART A: TOTAL AREA</label>
+                <div style="background: white; padding: 12px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3b82f6; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <label style="font-weight:bold; font-size:11px; color:#3b82f6; letter-spacing:1px;">PART A: TOTAL AREA</label>
                     <div style="display:flex; gap:5px; margin-top:5px;">
-                        <input type="number" id="ans-area-val" placeholder="Value" style="flex:2; height:35px; border-radius:4px; border:1px solid #cbd5e1; text-align:center;">
-                        <select id="ans-area-unit" style="flex:1; height:35px; border-radius:4px; border:1px solid #cbd5e1;">
+                        <input type="number" id="ans-area-val" placeholder="0.0" step="0.1" style="flex:2; height:38px; border-radius:4px; border:1px solid #cbd5e1; text-align:center; font-size:16px;">
+                        <select id="ans-area-unit" style="flex:1.2; height:38px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px;">
                             <option value="">Unit</option>
                             <option value="linear">${complexData.unit}</option>
                             <option value="square">${complexData.unit}²</option>
@@ -125,11 +138,11 @@ function renderComplexUI() {
                     </div>
                 </div>
 
-                <div style="background: white; padding: 10px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #059669;">
-                    <label style="font-weight:bold; font-size:11px; color:#059669;">PART B: PERIMETER</label>
+                <div style="background: white; padding: 12px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #10b981; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <label style="font-weight:bold; font-size:11px; color:#10b981; letter-spacing:1px;">PART B: PERIMETER</label>
                     <div style="display:flex; gap:5px; margin-top:5px;">
-                        <input type="number" id="ans-perim-val" placeholder="Value" style="flex:2; height:35px; border-radius:4px; border:1px solid #cbd5e1; text-align:center;">
-                        <select id="ans-perim-unit" style="flex:1; height:35px; border-radius:4px; border:1px solid #cbd5e1;">
+                        <input type="number" id="ans-perim-val" placeholder="0.0" step="0.1" style="flex:2; height:38px; border-radius:4px; border:1px solid #cbd5e1; text-align:center; font-size:16px;">
+                        <select id="ans-perim-unit" style="flex:1.2; height:38px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px;">
                             <option value="">Unit</option>
                             <option value="linear">${complexData.unit}</option>
                             <option value="square">${complexData.unit}²</option>
@@ -137,10 +150,10 @@ function renderComplexUI() {
                     </div>
                 </div>
 
-                <button onclick="checkComplexWin()" style="width:100%; height:50px; background:#1e293b; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">SUBMIT RESULTS</button>
+                <button onclick="checkComplexWin()" style="width:100%; height:50px; background:#1e293b; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; transition: background 0.2s;">SUBMIT FINAL ANSWERS</button>
             </div>
         </div>
-        <div id="flash-overlay" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); background:rgba(0,0,0,0.8); color:white; padding:20px 40px; border-radius:12px; font-size:24px; font-weight:bold; display:none; pointer-events:none; text-align:center; z-index:100;"></div>
+        <div id="flash-overlay" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); background:rgba(0,0,0,0.8); color:white; padding:20px 40px; border-radius:12px; font-size:20px; font-weight:bold; display:none; pointer-events:none; text-align:center; z-index:100;"></div>
     `;
 
     drawComplex();
@@ -149,35 +162,46 @@ function renderComplexUI() {
 function drawComplex() {
     const canvas = document.getElementById('complexCanvas');
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, 450, 350);
+    ctx.clearRect(0, 0, 480, 380);
     ctx.lineWidth = 3;
     ctx.strokeStyle = "#334155";
-    ctx.fillStyle = "#e2e8f0";
+    ctx.fillStyle = "#f1f5f9";
 
     complexData.components.forEach(p => {
         ctx.beginPath();
-        if (p.type === 'rectangle') {
+        if (p.type === 'rectangle' || p.type === 'square') {
             ctx.rect(p.x, p.y, p.w, p.h);
             ctx.fill(); ctx.stroke();
             ctx.fillStyle = "#000";
-            ctx.fillText(`${p.w} ${complexData.unit}`, p.x + p.w/2 - 10, p.y - 10);
-            ctx.fillText(`${p.h} ${complexData.unit}`, p.x - 45, p.y + p.h/2);
+            ctx.font = "bold 13px Arial";
+            ctx.fillText(`${p.w} ${complexData.unit}`, p.x + p.w/2 - 15, p.y - 12);
+            ctx.fillText(`${p.h} ${complexData.unit}`, p.x - 55, p.y + p.h/2);
         } else if (p.type === 'triangle') {
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p.x + p.height, p.y + p.base/2);
             ctx.lineTo(p.x, p.y + p.base);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#000";
+            ctx.fillStyle = "#475569";
             ctx.fillText(`h: ${p.height}`, p.x + 10, p.y + p.base/2 + 5);
         } else if (p.type === 'semicircle') {
             ctx.arc(p.x, p.y, p.r, -Math.PI/2, Math.PI/2);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#000";
+            ctx.fillStyle = "#475569";
             ctx.fillText(`r: ${p.r}`, p.x + 5, p.y + 5);
+        } else if (p.type === 'trapezoid') {
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x + p.h, p.y);
+            ctx.lineTo(p.x + p.h, p.y + p.b2);
+            ctx.lineTo(p.x, p.y + p.b1);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            ctx.fillStyle = "#000";
+            ctx.fillText(`b2: ${p.b2}`, p.x + p.h + 5, p.y + p.b2/2);
+            ctx.fillText(`h: ${p.h}`, p.x + p.h/2 - 10, p.y - 10);
         }
-        ctx.fillStyle = "#e2e8f0";
+        ctx.fillStyle = "#f1f5f9";
     });
 
     canvas.onclick = (e) => {
@@ -186,10 +210,10 @@ function drawComplex() {
         const my = e.clientY - rect.top;
         const bubble = document.getElementById('hint-bubble');
         
-        let part = complexData.components.find(p => mx > p.x - 20 && mx < p.x + 150 && my > p.y - 20 && my < p.y + 100);
+        let part = complexData.components.find(p => mx > p.x - 20 && mx < p.x + 150 && my > p.y - 20 && my < p.y + 120);
         
         if (part) {
-            bubble.innerHTML = `<strong>Formula Hint:</strong><br>${part.hintA}<br>${part.hintP}`;
+            bubble.innerHTML = `<strong>Formula:</strong><br>${part.hintA}<br>${part.hintP}`;
             bubble.style.left = `${mx + 15}px`;
             bubble.style.top = `${my - 40}px`;
             bubble.style.display = 'block';
@@ -204,8 +228,9 @@ window.checkComplexWin = async function() {
     const pVal = parseFloat(document.getElementById('ans-perim-val').value);
     const pUnit = document.getElementById('ans-perim-unit').value;
 
-    const areaOK = (Math.abs(aVal - complexData.totalArea) < 2.0) && (aUnit === 'square');
-    const perimOK = (Math.abs(pVal - complexData.totalPerimeter) < 2.0) && (pUnit === 'linear');
+    // Tolerance check for PI and rounding
+    const areaOK = (Math.abs(aVal - complexData.totalArea) < 2.5) && (aUnit === 'square');
+    const perimOK = (Math.abs(pVal - complexData.totalPerimeter) < 2.5) && (pUnit === 'linear');
 
     if (areaOK && perimOK) {
         let newVal = Math.min(10, (window.userProgress.ComplexShapes || 0) + 1);
@@ -220,11 +245,14 @@ window.checkComplexWin = async function() {
                 .eq('hour', currentHour);
         }
 
-        showFlash("Excellent! Mastery increased.", "success");
-        setTimeout(() => finishComplex(), 1500);
+        showFlash("Great Job! Area and Perimeter mastered.", "success");
+        setTimeout(() => finishComplex(), 1800);
     } else {
-        let msg = (!areaOK && !perimOK) ? "Both answers need review." : 
-                  (!areaOK ? "Check Area or Units (²)." : "Check Perimeter or Units.");
+        let msg = "";
+        if (!areaOK && !perimOK) msg = "Both values need double-checking.";
+        else if (!areaOK) msg = (aUnit !== 'square') ? "Area needs square units!" : "Area value is incorrect.";
+        else msg = (pUnit !== 'linear') ? "Perimeter needs linear units!" : "Perimeter value is incorrect.";
+        
         showFlash(msg, "error");
     }
 };
@@ -232,10 +260,10 @@ window.checkComplexWin = async function() {
 function finishComplex() {
     window.isCurrentQActive = false;
     document.getElementById('q-content').innerHTML = `
-        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:400px;">
-            <div style="font-size:60px;">📐</div>
-            <h2 style="color:#1e293b;">Shape Completed!</h2>
-            <p style="color:#64748b;">Moving to next skill...</p>
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:400px; text-align:center;">
+            <div style="font-size:70px; margin-bottom:10px;">🏆</div>
+            <h2 style="color:#1e293b; margin-bottom:5px;">Composite Shape Mastered</h2>
+            <p style="color:#64748b;">Loading your next challenge...</p>
         </div>
     `;
     setTimeout(() => {
@@ -248,6 +276,6 @@ function showFlash(msg, type) {
     if (!overlay) return;
     overlay.innerText = msg;
     overlay.style.display = 'block';
-    overlay.style.backgroundColor = type === 'success' ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)';
-    setTimeout(() => { overlay.style.display = 'none'; }, 2000);
+    overlay.style.backgroundColor = type === 'success' ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)';
+    setTimeout(() => { overlay.style.display = 'none'; }, 2500);
 }
