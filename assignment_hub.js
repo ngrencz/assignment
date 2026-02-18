@@ -224,6 +224,8 @@ async function loadNextQuestion() {
 async function finishAssignment() {
     window.isCurrentQActive = false;
     let dbColumn = window.targetLesson === 'C6Review' ? 'C6Review' : 'C624_Completed';
+    // FIX: Get the correct hour string from session
+    const currentHour = sessionStorage.getItem('target_hour') || "00";
 
     const updateObj = {};
     updateObj[dbColumn] = true;
@@ -233,12 +235,12 @@ async function finishAssignment() {
             .from('assignment')
             .update(updateObj)
             .eq('userName', window.currentUser)
-            .eq('hour', 0);
+            .eq('hour', currentHour); // FIX: Match the string hour, not number 0
 
         document.getElementById('work-area').innerHTML = `
             <div style="text-align: center; padding: 40px; background: #f8fafc; border-radius: 12px; border: 2px solid #22c55e;">
                 <h1 style="color: #22c55e;">Goal Reached!</h1>
-                <p>Your 12 minutes of practice are logged.</p>
+                <p>Your 12 minutes of practice are logged for Hour ${currentHour}.</p>
                 <button onclick="location.reload()" class="primary-btn">Start New Session</button>
             </div>
         `;
