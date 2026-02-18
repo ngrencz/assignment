@@ -171,9 +171,9 @@ async function loadNextQuestion() {
         }
 
         // Warning if the SPECIFIC selected lesson is already completed
-        if (data && data[window.targetLesson] === true) {
-            alert(`Attention: The lesson "${window.targetLesson}" is already marked as completed in the database.`);
-        }
+        //if (data && data[window.targetLesson] === true) {
+        //    alert(`Attention: The lesson "${window.targetLesson}" is already marked as completed in the database.`);
+        //}
     } catch (err) {
         console.error("DB Initialization Error:", err);
     }
