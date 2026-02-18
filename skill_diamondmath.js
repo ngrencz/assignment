@@ -7,11 +7,11 @@
  */
 
 var diamondData = {
-    A: 0,           // Left Factor
-    B: 0,           // Right Factor
-    top: 0,         // Product
-    bottom: 0,      // Sum
-    missing: [],    // Array of keys ['A', 'B', 'top', 'bottom'] that are hidden
+    A: 0,            // Left Factor
+    B: 0,            // Right Factor
+    top: 0,          // Product
+    bottom: 0,       // Sum
+    missing: [],     // Array of keys ['A', 'B', 'top', 'bottom'] that are hidden
     level: 0        
 };
 
@@ -25,17 +25,24 @@ window.initDiamondMath = async function() {
     window.currentQSeconds = 0;
     diamondRound = 1;
 
-    if (!window.userProgress) window.userProgress = {};
+    // Initialize Mastery State
+    if (!window.userMastery) window.userMastery = {};
+
     try {
         if (window.supabaseClient && window.currentUser) {
+            const currentHour = sessionStorage.getItem('target_hour');
             const { data } = await window.supabaseClient
                 .from('assignment')
                 .select('DiamondMath')
                 .eq('userName', window.currentUser)
+                .eq('hour', currentHour)
                 .maybeSingle();
-            window.userProgress.DiamondMath = data?.DiamondMath || 0;
+            
+            window.userMastery.DiamondMath = data?.DiamondMath || 0;
         }
-    } catch (e) { console.log("Supabase sync error."); }
+    } catch (e) { 
+        console.log("Supabase sync error, using local state"); 
+    }
     
     startDiamondRound();
 };
@@ -46,12 +53,12 @@ function startDiamondRound() {
 }
 
 function generateDiamondProblem() {
-    const lvl = window.userProgress.DiamondMath || 0;
+    const lvl = window.userMastery.DiamondMath || 0;
     diamondData.level = lvl;
     
     let a, b;
 
-    // --- GENERATION (Same difficulty tiers) ---
+    // --- GENERATION (Difficulty tiers based on Mastery) ---
     if (lvl < 4) {
         // Positive Ints
         a = Math.floor(Math.random() * 12) + 1;
@@ -78,7 +85,7 @@ function generateDiamondProblem() {
     diamondData.top = a * b;    
     diamondData.bottom = a + b; 
 
-    // --- HIDING LOGIC (New: Covers ALL combos) ---
+    // --- HIDING LOGIC (Covers ALL combos) ---
     const r = Math.random();
     
     if (r < 0.25) {
@@ -91,7 +98,6 @@ function generateDiamondProblem() {
     } 
     else if (r < 0.75) {
         // Case 3: Given Sum (Bottom) & One Side -> Find Product & Other Side
-        // Randomly choose which side is missing
         const sideToHide = Math.random() > 0.5 ? 'A' : 'B';
         diamondData.missing = ['top', sideToHide];
     } 
@@ -112,7 +118,9 @@ function renderDiamondUI() {
             return `<input type="text" id="ans-${key}" placeholder="?" autocomplete="off" 
                     style="width:60px; height:40px; text-align:center; font-size:18px; border:2px solid #3b82f6; border-radius:8px; outline:none; background:white;">`;
         }
-        return `<span style="font-size:24px; font-weight:bold; color:#1e293b;">${val}</span>`;
+        // Format display value to avoid long decimals
+        let displayVal = Number.isInteger(val) ? val : parseFloat(val.toFixed(2));
+        return `<span style="font-size:24px; font-weight:bold; color:#1e293b;">${displayVal}</span>`;
     };
 
     document.getElementById('q-title').innerText = `Diamond Problems (Round ${diamondRound}/${totalDiamondRounds})`;
@@ -228,9 +236,10 @@ window.checkDiamondWin = async function() {
     if (allCorrect) {
         showFlash("Correct!", "success");
         
-        let current = window.userProgress.DiamondMath || 0;
+        // Update Mastery (+1 for every correct round)
+        let current = window.userMastery.DiamondMath || 0;
         let nextScore = Math.min(10, current + 1);
-        window.userProgress.DiamondMath = nextScore;
+        window.userMastery.DiamondMath = nextScore;
 
         if (window.supabaseClient && window.currentUser) {
             try {
@@ -239,7 +248,9 @@ window.checkDiamondWin = async function() {
                     .update({ DiamondMath: nextScore })
                     .eq('userName', window.currentUser)
                     .eq('hour', hour);
-            } catch (e) {}
+            } catch (e) {
+                console.error("Supabase update failed:", e);
+            }
         }
 
         diamondRound++;
@@ -257,13 +268,14 @@ function finishDiamondGame() {
     document.getElementById('q-content').innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:400px; text-align:center;">
             <div style="font-size:60px; margin-bottom:10px;">💎</div>
-            <h2 style="color:#1e293b;">Diamond Set Complete!</h2>
-            <p style="color:#64748b;">Moving on...</p>
+            <h2 style="color:#1e293b; margin-bottom:5px;">Diamond Set Complete!</h2>
+            <p style="color:#64748b;">Great work.</p>
+            <p style="font-size: 14px; color: #10b981; margin-top: 10px;">Loading next activity...</p>
         </div>
     `;
     setTimeout(() => {
         if (typeof window.loadNextQuestion === 'function') window.loadNextQuestion();
-    }, 2500);
+    }, 2000);
 }
 
 function showFlash(msg, type) {
