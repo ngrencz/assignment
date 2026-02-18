@@ -100,6 +100,19 @@ input:focus {
     outline: none;
 }
 
+.math-input {
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.5rem;
+    color: var(--kelly-green);
+    border: 3px solid var(--gray-med);
+}
+
+.math-input:focus {
+    border-color: var(--kelly-green);
+    background-color: #f0fff4; /* Very light green hint */
+}
+
 /* --- Timer --- */
 #timer-display {
     font-family: 'Courier New', monospace;
