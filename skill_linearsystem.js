@@ -1,23 +1,57 @@
-var linearErrorCount = 0;
-var currentStep = 1; 
-var currentSystem = {};
-var userPoints = [];
-var step1Point = {}; 
-var step2Point = {}; 
+/**
+ * skill_linear_system.js
+ * - Step 1 & 2: Verify if a specific point is a solution to the equations.
+ * - Step 3: Determine number of solutions (One, None, Infinite).
+ * - Step 4: Graph both lines to confirm.
+ */
+
+var linearSystemData = {
+    step: 1,           // 1: Check Pt 1, 2: Check Pt 2, 3: Count Solutions, 4: Graph
+    errors: 0,
+    system: {},        // Stores m1, b1, m2, b2, target solutions
+    userPoints: [],    // Points clicked by user for graphing
+    testPoints: [],    // Points used in Steps 1 & 2
+    scale: 18          // Grid scale (pixels per unit)
+};
 
 window.initLinearSystemGame = async function() {
-    window.isCurrentQActive = true;
-    window.currentQSeconds = 0;
-    linearErrorCount = 0;
-    currentStep = 1;
-    userPoints = [];
+    if (!document.getElementById('q-content')) return;
 
-    // --- 1. GENERATE THE SYSTEM ---
-    const type = Math.floor(Math.random() * 3); // 0: One Sol, 1: None (Parallel), 2: Infinite
+    // Reset State
+    linearSystemData.step = 1;
+    linearSystemData.errors = 0;
+    linearSystemData.userPoints = [];
+    linearSystemData.testPoints = [];
+
+    // Initialize Mastery
+    if (!window.userMastery) window.userMastery = {};
+
+    // Sync initial score
+    try {
+        if (window.supabaseClient && window.currentUser) {
+            const h = sessionStorage.getItem('target_hour') || "00";
+            const { data } = await window.supabaseClient
+                .from('assignment')
+                .select('LinearSystem')
+                .eq('userName', window.currentUser)
+                .eq('hour', h)
+                .maybeSingle();
+            
+            if (data) window.userMastery.LinearSystem = data.LinearSystem || 0;
+        }
+    } catch (e) { console.log("Sync error", e); }
+
+    generateLinearSystem();
+    renderLinearSystemUI();
+};
+
+function generateLinearSystem() {
+    // 0: One Sol, 1: None (Parallel), 2: Infinite
+    const type = Math.floor(Math.random() * 3); 
     
-    // Generate valid integer solution (tx, ty)
-    const tx = Math.floor(Math.random() * 11) - 5; 
-    const ty = Math.floor(Math.random() * 11) - 5;
+    // Generate valid integer intersection (tx, ty) for display/logic
+    const tx = Math.floor(Math.random() * 9) - 4; // -4 to 4
+    const ty = Math.floor(Math.random() * 9) - 4;
 
     const slopes = [-3, -2, -1, 1, 2, 3];
     const m1 = slopes[Math.floor(Math.random() * slopes.length)];
@@ -33,7 +67,7 @@ window.initLinearSystemGame = async function() {
     } else if (type === 1) { 
         // No Solution (Parallel)
         m2 = m1;
-        b2 = b1 + (Math.random() > 0.5 ? 4 : -4); 
+        do { b2 = Math.floor(Math.random() * 10) - 5; } while (b2 === b1);
         correctCount = 0;
     } else { 
         // Infinite Solutions (Same Line)
@@ -42,314 +76,384 @@ window.initLinearSystemGame = async function() {
         correctCount = Infinity;
     }
 
-    // --- 2. GENERATE DISPLAY STRINGS ---
+    // Generate Display Strings (Standard vs Slope-Intercept)
     let eq1Obj = generateEquationDisplay(m1, b1);
     let eq2Obj = generateEquationDisplay(m2, b2);
 
-    // Prevent identical strings for Infinite Solutions (e.g. don't show "y=x+1" twice)
-    let safety = 0;
-    while (eq1Obj.text === eq2Obj.text && safety < 20) {
-        eq2Obj = generateEquationDisplay(m2, b2);
-        safety++;
+    // If infinite, ensure we don't show the exact same string twice (unless unlucky)
+    if (type === 2 && eq1Obj.text === eq2Obj.text) {
+        // Force Standard form for one of them to look different
+        eq2Obj = generateEquationDisplay(m2, b2, true);
     }
 
-    // --- 3. GENERATE TEST POINTS ---
+    // Generate Test Points for Steps 1 & 2
     const truePoint = { x: tx, y: ty };
+    // A pool of points that might or might not work
     const pool = [
-        truePoint, truePoint, 
+        truePoint, 
         { x: tx + 1, y: ty }, 
         { x: tx, y: ty + 1 }, 
-        { x: tx + 2, y: ty - 2 },
-        { x: 0, y: 0 }
+        { x: 0, y: 0 },
+        { x: tx - 1, y: ty - 1 }
     ];
 
-    // Select random test points
-    step1Point = pool[Math.floor(Math.random() * pool.length)];
-    do {
-        step2Point = pool[Math.floor(Math.random() * pool.length)];
-    } while (step1Point.x === step2Point.x && step1Point.y === step2Point.y);
+    linearSystemData.testPoints = [
+        pool[Math.floor(Math.random() * pool.length)],
+        pool[Math.floor(Math.random() * pool.length)]
+    ];
 
-    // --- 4. STORE STATE ---
-    currentSystem = {
+    linearSystemData.system = {
         m1, b1, m2, b2, 
         tx, ty, 
         correctCount,
         eq1Disp: eq1Obj.text,
         eq2Disp: eq2Obj.text,
-        s1: `y = ${m1}x ${b1 >= 0 ? '+ ' + b1 : '- ' + Math.abs(b1)}`,
-        s2: `y = ${m2}x ${b2 >= 0 ? '+ ' + b2 : '- ' + Math.abs(b2)}`
+        type: type
     };
+}
 
-    renderLinearUI();
-};
-
-function generateEquationDisplay(m, b) {
-    const isStandard = Math.random() > 0.5; 
+function generateEquationDisplay(m, b, forceStandard = false) {
+    const isStandard = forceStandard || Math.random() > 0.5; 
 
     if (!isStandard) {
-        // Slope Intercept Form
+        // Slope Intercept Form: y = mx + b
         let mPart = (m === 1) ? "x" : (m === -1) ? "-x" : `${m}x`;
         let bPart = (b === 0) ? "" : (b > 0 ? ` + ${b}` : ` - ${Math.abs(b)}`);
         return { text: `y = ${mPart}${bPart}` };
     } else {
-        // Standard Form: Ax + By = C
-        let A = m;
-        let B = -1;
-        let C = -b;
+        // Standard Form: -mx + y = b  ->  Ax + By = C
+        // y = mx + b  =>  -mx + y = b
+        let A = -m;
+        let B = 1;
+        let C = b;
 
-        // Multiply by 1, 2, or 3
-        let mult = Math.floor(Math.random() * 3) + 1; 
-        A *= mult; B *= mult; C *= mult;
+        // Make A positive if possible
+        if (A < 0) { A *= -1; B *= -1; C *= -1; }
 
-        let A_str = (A === 1) ? "x" : (A === -1) ? "-x" : `${A}x`;
-        if (A === 0) A_str = ""; 
-
+        let A_str = (A === 0) ? "" : (A === 1) ? "x" : (A === -1) ? "-x" : `${A}x`;
         let B_str = (B < 0) ? ` - ${Math.abs(B)}y` : ` + ${B}y`;
         if (Math.abs(B) === 1) B_str = (B < 0 ? " - y" : " + y");
+        
+        // Clean up leading + if A was 0
+        if (A === 0 && B_str.trim().startsWith("+")) B_str = B_str.replace("+", "");
 
         return { text: `${A_str}${B_str} = ${C}` };
     }
 }
 
-function renderLinearUI() {
+function renderLinearSystemUI() {
     const qContent = document.getElementById('q-content');
     if (!qContent) return;
-    document.getElementById('q-title').innerText = "System Analysis";
+    
+    const s = linearSystemData.system;
+    const step = linearSystemData.step;
 
-    // Determine which equation to highlight during graphing
-    const plottingEq1 = (currentStep === 4 && userPoints.length < 2);
-    const plottingEq2 = (currentStep === 4 && userPoints.length >= 2);
-
-    const style1 = plottingEq1 ? "color:#2563eb; font-weight:900; background:#dbeafe; padding:2px 8px; border-radius:4px;" : "color:#334155;";
-    const style2 = plottingEq2 ? "color:#2563eb; font-weight:900; background:#dbeafe; padding:2px 8px; border-radius:4px;" : "color:#334155;";
-
+    // --- Header ---
     let html = `
-        <div style="background:#f8fafc; padding:20px; border-radius:12px; margin-bottom:15px; border: 1px solid #e2e8f0; text-align:center;">
-            <p style="font-family:monospace; font-size:1.4rem; margin:0; line-height:2;">
-                <span style="${style1}">Eq 1: ${currentSystem.eq1Disp}</span><br>
-                <span style="${style2}">Eq 2: ${currentSystem.eq2Disp}</span>
+        <div style="max-width:500px; margin:0 auto;">
+            <div style="background:#f8fafc; padding:15px; border-radius:12px; margin-bottom:20px; border:1px solid #e2e8f0; text-align:center;">
+                <div style="font-family:monospace; font-size:18px; color:#1e293b; line-height:1.6;">
+                    <div id="eq1-disp" style="padding:4px; border-radius:4px;">${s.eq1Disp}</div>
+                    <div id="eq2-disp" style="padding:4px; border-radius:4px;">${s.eq2Disp}</div>
+                </div>
+            </div>
+    `;
+
+    // --- Steps 1 & 2: Point Verification ---
+    if (step < 3) {
+        const p = linearSystemData.testPoints[step - 1];
+        html += `
+            <h4 style="color:#475569; text-align:center;">Step ${step}: Test a Point</h4>
+            <p style="text-align:center; font-size:16px;">
+                Is the point <strong>(${p.x}, ${p.y})</strong> a solution to the <strong>entire system</strong>?
             </p>
-        </div>`;
-
-    if (currentStep < 4) {
-        // ... (Same Step 1-3 Logic) ...
-        let questionText = "";
-        let pointToTest = (currentStep === 1) ? step1Point : step2Point;
+            <div style="display:flex; justify-content:center; gap:20px; margin-top:20px;">
+                <button onclick="handleSysStep(true)" class="btn-primary" style="width:100px;">Yes</button>
+                <button onclick="handleSysStep(false)" class="btn-secondary" style="width:100px;">No</button>
+            </div>
+        `;
+    } 
+    // --- Step 3: Count Solutions ---
+    else if (step === 3) {
+        html += `
+            <h4 style="color:#475569; text-align:center;">Step 3: Analyze</h4>
+            <p style="text-align:center;">Based on the slopes and intercepts, how many solutions does this system have?</p>
+            <div style="display:flex; justify-content:center; gap:10px; margin-top:20px;">
+                <button onclick="handleSysCount(1)" class="btn-primary">One Solution</button>
+                <button onclick="handleSysCount(0)" class="btn-primary">No Solution</button>
+                <button onclick="handleSysCount(Infinity)" class="btn-primary">Infinite</button>
+            </div>
+        `;
+    }
+    // --- Step 4: Graphing ---
+    else if (step === 4) {
+        // Highlight active equation
+        const plottingEq2 = linearSystemData.userPoints.length >= 2;
         
-        if (currentStep < 3) questionText = `Is (${pointToTest.x}, ${pointToTest.y}) a solution to BOTH?`;
-        else questionText = "How many solutions exist?";
+        setTimeout(() => {
+            document.getElementById('eq1-disp').style.background = plottingEq2 ? "transparent" : "#dbeafe";
+            document.getElementById('eq1-disp').style.fontWeight = plottingEq2 ? "normal" : "bold";
+            document.getElementById('eq2-disp').style.background = plottingEq2 ? "#fecaca" : "transparent";
+            document.getElementById('eq2-disp').style.fontWeight = plottingEq2 ? "bold" : "normal";
+        }, 50);
 
-        html += `<p style="text-align:center; font-weight:bold; font-size:1.1rem; margin-bottom:15px;">${questionText}</p>
-                 <div style="display:flex; justify-content:center; gap:15px; margin-bottom:20px;">`;
-        
-        if (currentStep < 3) {
-            html += `<button class="primary-btn" onclick="handleStep(true)" style="min-width:80px;">Yes</button>
-                     <button class="secondary-btn" onclick="handleStep(false)" style="min-width:80px;">No</button>`;
-        } else {
-            html += `<button class="primary-btn" onclick="handleCount(1)">One</button>
-                     <button class="primary-btn" onclick="handleCount(0)">None</button>
-                     <button class="primary-btn" onclick="handleCount(Infinity)">Infinite</button>`;
-        }
-        html += `</div>`;
-    } else {
-        html += `<div style="text-align:center; margin-bottom:5px; font-size:0.85rem; color:#64748b;">Hint: ${currentSystem.s1} | ${currentSystem.s2}</div>
-                 <div style="position:relative; width:360px; margin:0 auto; background:white;">
-                    <div id="coord-hover" style="position:absolute; top:5px; right:5px; background:rgba(255,255,255,0.9); padding:4px 8px; border:1px solid #333; border-radius:4px; font-family:monospace; font-weight:bold; z-index:100; pointer-events: none; opacity:0; transition:opacity 0.2s;">(0, 0)</div>
-                    <canvas id="systemCanvas" width="360" height="360" style="border:2px solid #333; display:block; cursor:crosshair;"></canvas>
-                 </div>
-                 <div id="graph-status" style="text-align:center; color:#3b82f6; font-weight:bold; margin-top:8px;">
-                    ${plottingEq1 ? "Graph Line 1" : "Graph Line 2"}
-                 </div>`;
+        html += `
+            <h4 style="color:#475569; text-align:center;">Step 4: Graph the System</h4>
+            <p style="text-align:center; font-size:14px; color:#64748b;">
+                ${plottingEq2 ? "Plot 2 points for the <strong>second</strong> equation." : "Plot 2 points for the <strong>first</strong> equation."}
+            </p>
+            
+            <div style="position:relative; width:360px; margin:0 auto; user-select:none;">
+                <div id="coord-hover" style="position:absolute; top:5px; right:5px; background:rgba(255,255,255,0.9); padding:2px 6px; border-radius:4px; font-size:12px; pointer-events:none; opacity:0;">0,0</div>
+                <canvas id="sysCanvas" width="360" height="360" style="border:2px solid #333; background:white; cursor:crosshair; display:block;"></canvas>
+            </div>
+            <div id="sys-feedback" style="text-align:center; height:20px; color:#ef4444; margin-top:10px; font-weight:bold;"></div>
+            <div style="text-align:center; margin-top:10px;">
+                <button onclick="resetSysGraph()" class="btn-secondary" style="font-size:12px; padding:5px 10px;">Reset Graph</button>
+            </div>
+        `;
     }
 
+    html += `</div>`; // End container
     qContent.innerHTML = html;
-    if (currentStep === 4) initCanvas();
+
+    if (step === 4) initSysCanvas();
 }
 
-// ... (handleStep and handleCount are unchanged) ...
-window.handleStep = function(userSaidYes) {
-    const p = (currentStep === 1) ? step1Point : step2Point;
-    const val1 = (currentSystem.m1 * p.x) + currentSystem.b1;
-    const val2 = (currentSystem.m2 * p.x) + currentSystem.b2;
-    const works = (Math.abs(p.y - val1) < 0.001) && (Math.abs(p.y - val2) < 0.001);
+// --- LOGIC HANDLERS ---
 
-    if (userSaidYes === works) { currentStep++; renderLinearUI(); } 
-    else { linearErrorCount++; alert("Incorrect."); }
+window.handleSysStep = function(userSaidYes) {
+    const p = linearSystemData.testPoints[linearSystemData.step - 1];
+    const s = linearSystemData.system;
+    
+    // Check Eq 1
+    const val1 = (s.m1 * p.x) + s.b1;
+    const works1 = Math.abs(p.y - val1) < 0.001;
+
+    // Check Eq 2
+    const val2 = (s.m2 * p.x) + s.b2;
+    const works2 = Math.abs(p.y - val2) < 0.001;
+
+    const actuallyWorks = works1 && works2;
+
+    if (userSaidYes === actuallyWorks) {
+        linearSystemData.step++;
+        renderLinearSystemUI();
+    } else {
+        linearSystemData.errors++;
+        alert("Incorrect. Check if the point works for BOTH equations.");
+    }
 };
 
-window.handleCount = function(val) {
-    if (val === currentSystem.correctCount) { currentStep = 4; renderLinearUI(); }
-    else { linearErrorCount++; alert("Check the slopes!"); }
+window.handleSysCount = function(val) {
+    if (val === linearSystemData.system.correctCount) {
+        linearSystemData.step = 4;
+        renderLinearSystemUI();
+    } else {
+        linearSystemData.errors++;
+        alert("Incorrect. Look at the slopes. Are they the same? If so, are the intercepts different?");
+    }
 };
 
-function initCanvas() {
-    const canvas = document.getElementById('systemCanvas');
-    const hover = document.getElementById('coord-hover');
+// --- GRAPHING ---
+
+function initSysCanvas() {
+    const canvas = document.getElementById('sysCanvas');
+    if(!canvas) return;
     const ctx = canvas.getContext('2d');
-    const size = 360, gridMax = 10, step = size / (gridMax * 2);
+    const hover = document.getElementById('coord-hover');
+    const size = 360;
+    const scale = linearSystemData.scale; // 18px per unit => 20 units total (-10 to 10)
 
-    function drawGrid() {
+    function draw() {
         ctx.clearRect(0,0,size,size);
-        ctx.strokeStyle = "#e5e7eb"; ctx.lineWidth = 1;
-        ctx.font = "10px sans-serif"; ctx.fillStyle = "#94a3b8"; ctx.textAlign = "center";
         
-        for(let i=-gridMax; i<=gridMax; i++) {
-            let pos = size/2 + i*step;
-            ctx.beginPath(); ctx.moveTo(pos, 0); ctx.lineTo(pos, size); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, pos); ctx.lineTo(size, pos); ctx.stroke();
-            if(i !== 0) {
-                ctx.fillText(i, pos, size/2 + 15);
-                ctx.fillText(-i, size/2 - 15, pos + 4);
-            }
+        // Grid
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "#e2e8f0";
+        for(let i=0; i<=size; i+=scale) {
+            ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,size); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(size,i); ctx.stroke();
         }
-        ctx.strokeStyle = "#1e293b"; ctx.lineWidth = 2;
+
+        // Axes
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#475569";
         ctx.beginPath(); ctx.moveTo(size/2, 0); ctx.lineTo(size/2, size); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, size/2); ctx.lineTo(size, size/2); ctx.stroke();
-        
-        userPoints.forEach((p, idx) => {
-            ctx.fillStyle = idx < 2 ? "#2563eb" : "#dc2626"; // Blue for L1, Red for L2
-            ctx.beginPath(); ctx.arc(size/2 + p.x*step, size/2 - p.y*step, 5, 0, Math.PI * 2); ctx.fill();
+
+        // User Points
+        linearSystemData.userPoints.forEach((p, idx) => {
+            // First 2 points = Line 1 (Blue), Next 2 = Line 2 (Red)
+            ctx.fillStyle = idx < 2 ? "#2563eb" : "#dc2626"; 
+            
+            let px = size/2 + (p.x * scale);
+            let py = size/2 - (p.y * scale);
+            
+            ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI*2); ctx.fill();
         });
 
-        if (userPoints.length >= 2) renderLine(userPoints[0], userPoints[1], "#2563eb");
-        if (userPoints.length === 4) renderLine(userPoints[2], userPoints[3], "#dc2626");
+        // Draw Lines
+        if (linearSystemData.userPoints.length >= 2) {
+            drawLine(linearSystemData.userPoints[0], linearSystemData.userPoints[1], "#2563eb");
+        }
+        if (linearSystemData.userPoints.length === 4) {
+            drawLine(linearSystemData.userPoints[2], linearSystemData.userPoints[3], "#dc2626");
+        }
     }
 
-    function renderLine(p1, p2, color) {
-        if (p1.x === p2.x) { 
-             ctx.strokeStyle = color; ctx.lineWidth = 3;
-             ctx.beginPath(); ctx.moveTo(size/2 + p1.x*step, 0); ctx.lineTo(size/2 + p1.x*step, size); ctx.stroke();
-             return;
-        }
-        const m = (p2.y - p1.y) / (p2.x - p1.x);
-        ctx.strokeStyle = color; ctx.lineWidth = 3;
+    function drawLine(p1, p2, color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        // Draw across full width
-        ctx.moveTo(size/2 + (-15)*step, size/2 - (p1.y + m*(-15 - p1.x))*step);
-        ctx.lineTo(size/2 + (15)*step, size/2 - (p1.y + m*(15 - p1.x))*step);
+        
+        if (p1.x === p2.x) { // Vertical
+             let x = size/2 + (p1.x * scale);
+             ctx.moveTo(x, 0); ctx.lineTo(x, size);
+        } else {
+            // Extend line to edges
+            let m = (p2.y - p1.y) / (p2.x - p1.x);
+            let b = p1.y - (m * p1.x); // internal logic b, not necessarily system b
+            
+            // Calculate Y at x=-10 and x=10
+            let yLeft = m * -10 + b;
+            let yRight = m * 10 + b;
+            
+            ctx.moveTo(size/2 + (-10*scale), size/2 - (yLeft*scale));
+            ctx.lineTo(size/2 + (10*scale), size/2 - (yRight*scale));
+        }
         ctx.stroke();
     }
 
-    canvas.onmousemove = function(e) {
+    draw();
+
+    // Interaction
+    canvas.onmousemove = (e) => {
         const rect = canvas.getBoundingClientRect();
-        const gx = Math.round((e.clientX - rect.left - size/2) / step);
-        const gy = Math.round((size/2 - (e.clientY - rect.top)) / step);
+        const gx = Math.round((e.clientX - rect.left - size/2) / scale);
+        const gy = Math.round((size/2 - (e.clientY - rect.top)) / scale);
         if(hover) {
             hover.style.opacity = 1;
             hover.innerText = `(${gx}, ${gy})`;
         }
     };
+    
+    canvas.onmouseleave = () => { if(hover) hover.style.opacity = 0; };
 
-    canvas.onmouseleave = function() {
-        if(hover) hover.style.opacity = 0;
-    };
-
-    canvas.onclick = function(e) {
-        if (userPoints.length >= 4) return;
+    canvas.onclick = (e) => {
+        if (linearSystemData.userPoints.length >= 4) return;
+        
         const rect = canvas.getBoundingClientRect();
-        
-        // Use rect calculation for robust coordinate mapping
-        const rawX = e.clientX - rect.left;
-        const rawY = e.clientY - rect.top;
-        
-        const gx = Math.round((rawX - size/2) / step);
-        const gy = Math.round((size/2 - rawY) / step);
-        
-        // Prevent duplicate points (clicking same spot twice)
-        if (userPoints.length > 0) {
-            const last = userPoints[userPoints.length - 1];
-            if (last.x === gx && last.y === gy) return;
+        const gx = Math.round((e.clientX - rect.left - size/2) / scale);
+        const gy = Math.round((size/2 - (e.clientY - rect.top)) / scale);
+
+        // Prevent duplicates in current pair
+        const currentLen = linearSystemData.userPoints.length;
+        if ((currentLen === 1 || currentLen === 3) && 
+            linearSystemData.userPoints[currentLen-1].x === gx && 
+            linearSystemData.userPoints[currentLen-1].y === gy) {
+            return;
         }
 
-        userPoints.push({x: gx, y: gy});
-        drawGrid();
+        linearSystemData.userPoints.push({x: gx, y: gy});
+        draw();
 
-        if (userPoints.length === 2) {
-            if (validate(1)) {
-                renderLinearUI(); // Updates highlight to Eq 2
+        // Logic check after pair completion
+        if (linearSystemData.userPoints.length === 2) {
+            if (checkLineValid(0, 1, 1)) {
+                renderLinearSystemUI(); // Refresh for Line 2
             } else {
-                linearErrorCount++; 
-                alert("Incorrect. That point is not on Eq 1."); 
-                userPoints = []; // Reset Line 1
-                drawGrid();
+                document.getElementById('sys-feedback').innerText = "Incorrect points for Equation 1.";
+                linearSystemData.errors++;
+                linearSystemData.userPoints = []; // Wipe Line 1
+                setTimeout(() => { 
+                    document.getElementById('sys-feedback').innerText = ""; 
+                    draw(); 
+                }, 1500);
             }
-        } else if (userPoints.length === 4) {
-            if (validate(2)) {
-                finishGame(); 
+        } else if (linearSystemData.userPoints.length === 4) {
+            if (checkLineValid(2, 3, 2)) {
+                finishSysGame();
             } else {
-                linearErrorCount++; 
-                alert("Incorrect. That point is not on Eq 2."); 
-                userPoints = [userPoints[0], userPoints[1]]; // Keep Line 1, Reset Line 2
-                drawGrid();
+                document.getElementById('sys-feedback').innerText = "Incorrect points for Equation 2.";
+                linearSystemData.errors++;
+                linearSystemData.userPoints.pop(); // Remove last two
+                linearSystemData.userPoints.pop();
+                setTimeout(() => { 
+                    document.getElementById('sys-feedback').innerText = ""; 
+                    draw(); 
+                }, 1500);
             }
         }
     };
-
-    function validate(n) {
-        const p1 = userPoints[n===1?0:2], p2 = userPoints[n===1?1:3];
-        const m = n===1?currentSystem.m1:currentSystem.m2;
-        const b = n===1?currentSystem.b1:currentSystem.b2;
-        
-        if (p1.x === p2.x && p1.y === p2.y) return false; 
-        
-        // Strict Check: y = mx + b
-        // Allow tiny float tolerance (0.01) but inputs are integers
-        const check1 = Math.abs(p1.y - (m * p1.x + b)) < 0.01;
-        const check2 = Math.abs(p2.y - (m * p2.x + b)) < 0.01;
-        
-        return (check1 && check2);
-    }
-
-    drawGrid();
 }
 
-async function finishGame() {
-    // 1. STOP the timer immediately
-    window.isCurrentQActive = false;
+function checkLineValid(idx1, idx2, eqNum) {
+    const p1 = linearSystemData.userPoints[idx1];
+    const p2 = linearSystemData.userPoints[idx2];
+    const s = linearSystemData.system;
+    
+    const m = (eqNum === 1) ? s.m1 : s.m2;
+    const b = (eqNum === 1) ? s.b1 : s.b2;
 
-    // 2. Clear the UI so they know it's done (Consistent with SolveX)
-    document.getElementById('q-content').innerHTML = `
-        <div style="text-align:center; padding:50px; animation: fadeIn 0.5s;">
-            <div style="font-size: 50px; margin-bottom: 20px;">📈</div>
-            <h2 style="color: var(--black);">System Analyzed!</h2>
-            <p style="color: var(--gray-text);">Graphing and Analysis Complete.</p>
-            <p style="font-size: 0.9rem; color: var(--kelly-green); margin-top: 10px;">Loading next activity...</p>
+    // Check if points satisfy y = mx + b
+    const check1 = Math.abs(p1.y - (m * p1.x + b)) < 0.1;
+    const check2 = Math.abs(p2.y - (m * p2.x + b)) < 0.1;
+
+    return check1 && check2;
+}
+
+window.resetSysGraph = function() {
+    linearSystemData.userPoints = [];
+    renderLinearSystemUI();
+};
+
+async function finishSysGame() {
+    const qContent = document.getElementById('q-content');
+    qContent.innerHTML = `
+        <div style="text-align:center; padding:40px;">
+            <h2 style="color:#1e293b;">System Solved!</h2>
+            <p style="font-size:20px; color:green;">Great Job.</p>
+            <p>Total Errors: ${linearSystemData.errors}</p>
         </div>
     `;
 
-    // 3. Calculate Score Adjustment
+    // Score Update
     let adjustment = 0;
-    if (linearErrorCount === 0) adjustment = 1;
-    else if (linearErrorCount >= 2) adjustment = -1;
+    if (linearSystemData.errors === 0) adjustment = 1;
+    else if (linearSystemData.errors >= 2) adjustment = -1;
 
-    // 4. Update Database
-    if (window.supabaseClient && window.currentUser && adjustment !== 0) {
-        try {
-            const { data } = await window.supabaseClient
-                .from('assignment')
-                .select('LinearSystem')
-                .eq('userName', window.currentUser)
-                .maybeSingle();
+    await updateSysScore(adjustment);
 
-            let currentScore = data ? (data.LinearSystem || 0) : 0;
-            let newScore = Math.max(0, Math.min(10, currentScore + adjustment));
-
-            await window.supabaseClient
-                .from('assignment')
-                .update({ LinearSystem: newScore })
-                .eq('userName', window.currentUser);
-                
-        } catch(e) {
-            console.error("Score update failed:", e);
-        }
-    }
-
-    // 5. Hand over to Hub
-    setTimeout(() => { 
-        if (typeof window.loadNextQuestion === 'function') {
-            window.loadNextQuestion(); 
-        } else {
-            location.reload();
-        }
-    }, 2000); // Give them 2 seconds to see the success message
+    setTimeout(() => {
+        if (typeof window.loadNextQuestion === 'function') window.loadNextQuestion();
+    }, 2500);
 }
+
+async function updateSysScore(amount) {
+    if (amount === 0) return;
+    
+    let current = window.userMastery.LinearSystem || 0;
+    let next = Math.max(0, Math.min(10, current + amount));
+    window.userMastery.LinearSystem = next;
+
+    if (window.supabaseClient && window.currentUser) {
+        try {
+            const h = sessionStorage.getItem('target_hour') || "00";
+            await window.supabaseClient.from('assignment')
+                .update({ LinearSystem: next })
+                .eq('userName', window.currentUser)
+                .eq('hour', h);
+        } catch(e) { console.error(e); }
+    }
+}
+
+// CSS Injection
+const sysStyle = document.createElement('style');
+sysStyle.innerHTML = `
+    .btn-primary { background:#3b82f6; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:14px; transition:0.2s; }
+    .btn-primary:hover { background:#2563eb; }
+    .btn-secondary { background:#e2e8f0; color:#334155; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:14px; transition:0.2s; }
+    .btn-secondary:hover { background:#cbd5e1; }
+`;
+document.head.appendChild(sysStyle);
