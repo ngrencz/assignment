@@ -122,8 +122,10 @@ function startNewRound() {
 }
 
 function generateMove(type) {
-    if (type === 'translation') return { type, dx: Math.floor(Math.random() * 5) - 2, dy: Math.floor(Math.random() * 5) - 2 };
-    if (type === 'translation' && Math.random() > 0.5) return { type, dx: Math.floor(Math.random() * 6) - 3, dy: Math.floor(Math.random() * 6) - 3 };
+   if (type === 'translation') {
+    let range = Math.random() > 0.5 ? 5 : 3; // Randomly choose between a large or small movement
+    return { type, dx: Math.floor(Math.random() * (range * 2 + 1)) - range, dy: Math.floor(Math.random() * (range * 2 + 1)) - range };
+    }
     if (type === 'rotate') return { type, deg: [90, 180][Math.floor(Math.random() * 2)], dir: ['CW', 'CCW'][Math.floor(Math.random() * 2)] };
     if (type === 'dilation') return { type, factor: [0.5, 2][Math.floor(Math.random() * 2)] };
     return { type }; 
