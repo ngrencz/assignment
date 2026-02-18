@@ -248,7 +248,8 @@ async function loadNextQuestion() {
         { id: 'FigureGrowth', fn: typeof initFigureGrowthGame !== 'undefined' ? initFigureGrowthGame : null },
         { id: 'SolveX', fn: typeof initSolveXGame !== 'undefined' ? initSolveXGame : null },
         { id: 'BoxPlot', fn: typeof initBoxPlotGame !== 'undefined' ? initBoxPlotGame : null },
-        { id: 'Similarity', fn: typeof initSimilarityGame !== 'undefined' ? initSimilarityGame : null }
+        { id: 'Similarity', fn: typeof initSimilarityGame !== 'undefined' ? initSimilarityGame : null },
+        { id: 'ComplexShapes', fn: typeof initComplexShapesGame !== 'undefined' ? initComplexShapesGame : null }
     ].filter(s => s.fn !== null);
 
     if (window.targetLesson === '6.2.4' || window.targetLesson === 'C6Review') {
