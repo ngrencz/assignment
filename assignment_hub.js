@@ -29,6 +29,7 @@ window.canCount = false;
 window.resumeTimeout = null;
 window.isWindowLargeEnough = true;
 window.hasLoadedTime = false; 
+
 // This "Bridge" pulls data from the login page and gives it to the math scripts
 window.currentHour = sessionStorage.getItem('target_hour');
 
@@ -53,7 +54,6 @@ window.currentHour = sessionStorage.getItem('target_hour');
     });
 });
 
-// Debug check to make sure the data arrived
 console.log("Session Loaded:", window.currentUser, window.currentHour);
 const GOAL_SECONDS = timeRequirements[window.targetLesson] || timeRequirements['default'];
 
@@ -182,6 +182,7 @@ async function syncTimerToDB() {
 // --- Adaptive Routing & DB Check/Create Logic ---
 async function loadNextQuestion() {
     if (window.isCurrentQActive) return;
+    window.isCurrentQActive = true; // Important to lock it immediately
     window.currentQSeconds = 0; 
     const feedback = document.getElementById('feedback-box');
     if(feedback) {
@@ -194,7 +195,6 @@ async function loadNextQuestion() {
     // Get the exact hour string from session storage
     const currentHour = sessionStorage.getItem('target_hour') || "00";
 
-    // 1. DYNAMIC DATABASE CHECK/CREATE LOGIC (RESTORED FULL VERSION)
     try {
         let { data, error } = await window.supabaseClient
             .from('assignment')
@@ -203,7 +203,7 @@ async function loadNextQuestion() {
             .eq('hour', currentHour)
             .maybeSingle();
 
-        // Create record if missing using the correct hour string
+        // Create record if missing
         if (!data && !error) {
             console.warn(`User ${window.currentUser} not found for Hour ${currentHour}. Creating record...`);
             await window.supabaseClient
@@ -215,7 +215,7 @@ async function loadNextQuestion() {
                     [`${window.targetLesson}Timer`]: 0
                 }]);
             
-            // Re-fetch using the correct hour string
+            // Re-fetch
             const { data: refreshed } = await window.supabaseClient
                 .from('assignment')
                 .select('*')
@@ -228,8 +228,7 @@ async function loadNextQuestion() {
         if (data) {
             const timerCol = `${window.targetLesson}Timer`;
             const savedTime = data[timerCol] || 0;
-            // Apply 30s penalty on load
-            window.totalSecondsWorked = Math.max(0, savedTime - 30);
+            window.totalSecondsWorked = Math.max(0, savedTime - 30); // 30s penalty on reload
             
             if (data[window.targetLesson] === true) {
                 window.totalSecondsWorked = GOAL_SECONDS;
@@ -241,7 +240,8 @@ async function loadNextQuestion() {
         console.error("DB Initialization Error:", err);
     }
 
-    // --- Skill Mapping Logic (RESTORED FULL VERSION) ---
+    // --- Skill Mapping Logic ---
+    // If you remove a script file, just remove it from here too
     const skillMap = [
         { id: 'C6Transformation', fn: typeof initTransformationGame !== 'undefined' ? initTransformationGame : null },
         { id: 'LinearSystem', fn: typeof initLinearSystemGame !== 'undefined' ? initLinearSystemGame : null },
@@ -257,13 +257,18 @@ async function loadNextQuestion() {
 
     if (window.targetLesson === '6.2.4' || window.targetLesson === 'C6Review') {
         
+        // FORCE FIRST QUESTION: Transformation
         if (!window.hasDonePrimaryLesson) {
             window.hasDonePrimaryLesson = true;
-            window.skillsCompletedThisSession.push('C6Transformation');
-            return initTransformationGame();
+            // Check if Transformation is loaded before forcing it
+            const transformSkill = skillMap.find(s => s.id === 'C6Transformation');
+            if (transformSkill) {
+                window.skillsCompletedThisSession.push('C6Transformation');
+                return transformSkill.fn();
+            }
         }
 
-        // Fixed the fetch here to use currentHour
+        // Fetch user progress to determine weakest skill
         const { data: skillData } = await window.supabaseClient
             .from('assignment')
             .select('*')
@@ -271,16 +276,30 @@ async function loadNextQuestion() {
             .eq('hour', currentHour)
             .maybeSingle(); 
 
+        // Filter out skills done this session so we rotate
         let availableSkills = skillMap.filter(s => !window.skillsCompletedThisSession.includes(s.id));
+        
+        // If we've done them all once, reset the rotation
         if (availableSkills.length === 0) {
             window.skillsCompletedThisSession = [];
             availableSkills = skillMap;
         }
 
-        // Sort by completion count
-        availableSkills.sort((a, b) => (skillData ? (skillData[a.id] || 0) : 0) - (skillData ? (skillData[b.id] || 0) : 0));
+        // Sort by Mastery Score (Lowest first)
+        // If the database column (e.g., 'DiamondMath') doesn't exist yet, it treats it as 0
+        availableSkills.sort((a, b) => {
+            const scoreA = skillData ? (skillData[a.id] || 0) : 0;
+            const scoreB = skillData ? (skillData[b.id] || 0) : 0;
+            return scoreA - scoreB;
+        });
+
+        // Pick the lowest mastery skill
         const nextSkill = availableSkills[0];
+        
+        // Log it so we don't repeat immediately
         window.skillsCompletedThisSession.push(nextSkill.id);
+        
+        // Run it
         nextSkill.fn();
 
     } else {
