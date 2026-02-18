@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dev Control | v1.9.0</title>
+    <title>Dev Control | v1.8.2</title>
     
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -14,11 +14,6 @@
     <script src="skill_figuregrowth.js"></script>
     <script src="skill_solveX.js"></script>
     <script src="skill_boxplot.js"></script>
-    <script src="skill_similarity.js"></script>
-    <script src="skill_complexshapes.js"></script>
-    <script src="skill_graphing.js"></script>
-    <script src="skill_diamondmath.js"></script>
-    <script src="skill_linear.js"></script>
 
     <style>
         /* CORE RESET - PROTECTING YOUR BUBBLE UI */
@@ -34,23 +29,22 @@
         .master-grid { display: grid; grid-template-columns: 380px 1fr; gap: 20px; height: calc(100vh - 120px); }
         
         /* COLUMN 1: SIDEBAR (LOG ON TOP) */
-        .sidebar { display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px; }
+        .sidebar { display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
         
         /* 2. LOG BUBBLE */
         .log-card { 
             background: #1a1a1a; border-radius: 12px; padding: 15px; 
             height: 220px; display: flex; flex-direction: column; border: 1px solid #333;
-            flex-shrink: 0;
         }
         .log-box { flex-grow: 1; color: #4CBB17; font-family: monospace; font-size: 11px; overflow-y: auto; }
 
         /* 3. CONTROL BUBBLES */
-        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); flex-shrink: 0; }
+        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
         /* COLUMN 2: GAME AREA */
         .main-stage { display: flex; flex-direction: column; overflow: hidden; }
 
-        /* 4. GAME AREA BUBBLE */
+        /* 4. GAME AREA BUBBLE - SOLVEX FIX */
         .game-card { 
             background: white; border: 1px solid #e2e8f0; border-radius: 12px; 
             padding: 50px; flex-grow: 1; overflow-y: auto; display: flex; 
@@ -58,28 +52,22 @@
             justify-content: flex-start;
         }
 
+        /* Restoring SolverX Two-Line Spacing */
         #q-content { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 30px; }
 
         .section-tag { color: #0ea5e9; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #f1f5f9; margin-bottom: 12px; display: block; }
         input[type="range"] { width: 100%; accent-color: #4CBB17; margin: 8px 0; cursor: pointer; }
         button { cursor: pointer; font-weight: bold; padding: 12px; border-radius: 8px; border: none; background: #6366f1; color: white; width: 100%; margin-top: 10px; }
         select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; margin-bottom: 5px; }
-        .slider-label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: #475569; }
-        details { margin-top: 5px; border-top: 1px solid #f1f5f9; padding-top: 5px; }
-        details summary { cursor: pointer; font-size: 13px; font-weight: bold; margin: 8px 0; outline: none; color: #334155; }
-        
-        /* Scrollbar styling */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+        details summary { cursor: pointer; font-size: 13px; font-weight: bold; margin: 8px 0; outline: none; }
     </style>
 </head>
 <body>
 
 <div class="header-card">
     <h1 style="margin:0; font-size: 18px;">Module <span style="color:#4CBB17">Troubleshooter</span></h1>
-    <div style="color:#64748b; font-size: 12px; border-left: 1px solid #ddd; padding-left: 15px;">Target: <b>test_user</b> | v1.9.0</div>
+    <div style="color:#64748b; font-size: 12px; border-left: 1px solid #ddd; padding-left: 15px;">Target: <b>test_user</b> | v1.8.2</div>
 </div>
 
 <div class="master-grid">
@@ -107,16 +95,11 @@
         <div class="card" style="border-top: 4px solid #6366f1;">
             <span class="section-tag">2. Force Launch</span>
             <select id="module-selector">
-                <option value="C6Transformation">Transformations</option>
                 <option value="SolveX">SolveX</option>
+                <option value="C6Transformation">Transformations</option>
                 <option value="LinearSystem">Linear Systems</option>
                 <option value="FigureGrowth">Figure Growth</option>
                 <option value="BoxPlot">Box Plots</option>
-                <option value="LinearMastery">Linear Algebra (New)</option>
-                <option value="Similarity">Similarity</option>
-                <option value="ComplexShapes">Complex Shapes</option>
-                <option value="Graphing">Graphing</option>
-                <option value="DiamondMath">Diamond Math</option>
                 <option value="HubAssignment">Hub Assignment</option>
             </select>
             <button onclick="forceLoadModule()">🚀 Launch Module</button>
@@ -124,67 +107,16 @@
 
         <div class="card">
             <span class="section-tag">3. Mastery Controls</span>
-            
-            <div class="slider-label">SolveX <span id="v-SolveX">0</span></div>
-            <input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')">
-            
-            <div class="slider-label">Figure Growth <span id="v-FigureGrowth">0</span></div>
-            <input type="range" id="s-FigureGrowth" min="0" max="10" value="0" oninput="updateVal('FigureGrowth')">
-
-            <details>
-                <summary>Linear Algebra: <span id="agg-LinearMastery">0</span></summary>
-                <div class="slider-label" style="font-size:10px;">Mastery <span id="v-LinearMastery">0</span></div>
-                <input type="range" id="s-LinearMastery" min="0" max="10" value="0" oninput="updateVal('LinearMastery')">
-                
-                <div class="slider-label" style="font-size:10px;">Equations <span id="v-LinearEq">0</span></div>
-                <input type="range" id="s-LinearEq" min="0" max="10" value="0" oninput="updateVal('LinearEq')">
-                
-                <div class="slider-label" style="font-size:10px;">Graphing <span id="v-LinearGraph">0</span></div>
-                <input type="range" id="s-LinearGraph" min="0" max="10" value="0" oninput="updateVal('LinearGraph')">
-
-                <div class="slider-label" style="font-size:10px;">Intercepts <span id="v-LinearInt">0</span></div>
-                <input type="range" id="s-LinearInt" min="0" max="10" value="0" oninput="updateVal('LinearInt')">
-
-                <div class="slider-label" style="font-size:10px;">Solving <span id="v-LinearSolve">0</span></div>
-                <input type="range" id="s-LinearSolve" min="0" max="10" value="0" oninput="updateVal('LinearSolve')">
-                
-                <div class="slider-label" style="font-size:10px;">Systems (Old) <span id="v-LinearSystem">0</span></div>
-                <input type="range" id="s-LinearSystem" min="0" max="10" value="0" oninput="updateVal('LinearSystem')">
-            </details>
-
-            <details>
-                <summary>Geometry & Misc</summary>
-                <div class="slider-label" style="font-size:10px;">Similarity <span id="v-Similarity">0</span></div>
-                <input type="range" id="s-Similarity" min="0" max="10" value="0" oninput="updateVal('Similarity')">
-                
-                <div class="slider-label" style="font-size:10px;">Complex Shapes <span id="v-ComplexShapes">0</span></div>
-                <input type="range" id="s-ComplexShapes" min="0" max="10" value="0" oninput="updateVal('ComplexShapes')">
-                
-                <div class="slider-label" style="font-size:10px;">Graphing Basic <span id="v-Graphing">0</span></div>
-                <input type="range" id="s-Graphing" min="0" max="10" value="0" oninput="updateVal('Graphing')">
-
-                <div class="slider-label" style="font-size:10px;">Diamond Math <span id="v-DiamondMath">0</span></div>
-                <input type="range" id="s-DiamondMath" min="0" max="10" value="0" oninput="updateVal('DiamondMath')">
-                
-                <div class="slider-label" style="font-size:10px;">Transformations <span id="v-C6Transformation">0</span></div>
-                <input type="range" id="s-C6Transformation" min="0" max="10" value="0" oninput="updateVal('C6Transformation')">
-            </details>
+            <div class="slider-label">SolveX <span id="v-SolveX">0</span></div><input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')">
+            <div class="slider-label">Linear System <span id="v-LinearSystem">0</span></div><input type="range" id="s-LinearSystem" min="0" max="10" value="0" oninput="updateVal('LinearSystem')">
+            <div class="slider-label">Figure Growth <span id="v-FigureGrowth">0</span></div><input type="range" id="s-FigureGrowth" min="0" max="10" value="0" oninput="updateVal('FigureGrowth')">
 
             <details>
                 <summary>Box Plot Skills: <span id="agg-BoxPlot">0</span></summary>
                 <input type="range" id="s-BoxPlot" min="0" max="10" value="0" oninput="updateVal('BoxPlot')">
-                
-                <div class="slider-label" style="font-size:10px;">Percent <span id="v-bp_percent">0</span></div>
-                <input type="range" id="s-bp_percent" min="0" max="10" value="0" oninput="updateVal('bp_percent')">
-                
-                <div class="slider-label" style="font-size:10px;">Range <span id="v-bp_range">0</span></div>
-                <input type="range" id="s-bp_range" min="0" max="10" value="0" oninput="updateVal('bp_range')">
-
-                <div class="slider-label" style="font-size:10px;">IQR <span id="v-bp_iqr">0</span></div>
-                <input type="range" id="s-bp_iqr" min="0" max="10" value="0" oninput="updateVal('bp_iqr')">
-                
-                <div class="slider-label" style="font-size:10px;">Quartiles <span id="v-bp_quartiles">0</span></div>
-                <input type="range" id="s-bp_quartiles" min="0" max="10" value="0" oninput="updateVal('bp_quartiles')">
+                <div class="slider-label" style="font-size:10px;">Median <span id="v-BoxPlotMedian">0</span></div><input type="range" id="s-BoxPlotMedian" min="0" max="10" value="0" oninput="updateVal('BoxPlotMedian')">
+                <div class="slider-label" style="font-size:10px;">IQR <span id="v-BoxPlotIQR">0</span></div><input type="range" id="s-BoxPlotIQR" min="0" max="10" value="0" oninput="updateVal('BoxPlotIQR')">
+                <div class="slider-label" style="font-size:10px;">Outliers <span id="v-BoxPlotOutlier">0</span></div><input type="range" id="s-BoxPlotOutlier" min="0" max="10" value="0" oninput="updateVal('BoxPlotOutlier')">
             </details>
         </div>
     </div>
@@ -199,14 +131,7 @@
 
 <script>
     const TABLE = 'assignment';
-    // UPDATED: All columns including new Linear Algebra and Box Plot sub-skills
-    const ALL_COLS = [
-        'SolveX','LinearSystem','FigureGrowth',
-        'BoxPlot','bp_percent','bp_range','bp_iqr','bp_quartiles',
-        'C6Transformation','C6Translation','C6ReflectionX','C6ReflectionY','C6Rotation','C6Dilation','C6Review',
-        'Similarity','ComplexShapes','Graphing','DiamondMath',
-        'LinearMastery','LinearEq','LinearGraph','LinearInt','LinearSolve'
-    ];
+    const ALL_COLS = ['SolveX','LinearSystem','FigureGrowth','BoxPlot','BoxPlotMedian','BoxPlotIQR','BoxPlotOutlier','C6Transformation','C6Translation','C6ReflectionX','C6ReflectionY','C6Rotation','C6Dilation','C6Review'];
 
     function log(m) { const l=document.getElementById('log'); l.innerHTML+=`<br>[${new Date().toLocaleTimeString()}] ${m}`; l.scrollTop=l.scrollHeight; }
 
@@ -215,32 +140,21 @@
         document.getElementById('assign-state-ui').style.display = lesson ? 'block' : 'none';
         try {
             const { data } = await window.supabaseClient.from(TABLE).select('*').eq('userName', 'test_user').eq('hour', 0).maybeSingle();
-            if(!data) { log("No user data found."); return; }
-            
+            if(!data) return;
             if(lesson === 'C6Review') document.getElementById('bool-toggle').value = (data.C6Review === true).toString();
-            
             ALL_COLS.forEach(c => {
                 const s=document.getElementById('s-'+c), v=document.getElementById('v-'+c), a=document.getElementById('agg-'+c);
                 const val = data[c] ?? 0;
-                if(s) s.value = val; 
-                if(v) v.innerText = val; 
-                if(a) a.innerText = val;
+                if(s) s.value = val; if(v) v.innerText = val; if(a) a.innerText = val;
             });
-            log(`DB Synced successfully.`);
-        } catch(e) { log("Sync Error: " + e.message); }
+            log(`DB Synced.`);
+        } catch(e) { log("Sync Error."); }
     }
 
     async function updateVal(id) {
         const val = parseInt(document.getElementById('s-'+id).value);
-        
-        // Update Label
-        const label = document.getElementById('v-'+id);
-        if(label) label.innerText = val;
-        
-        // Update Aggregate if exists
-        const agg = document.getElementById('agg-'+id);
-        if(agg) agg.innerText = val;
-        
+        document.getElementById('v-'+id).innerText = val;
+        if(document.getElementById('agg-'+id)) document.getElementById('agg-'+id).innerText = val;
         await window.supabaseClient.from(TABLE).update({ [id]: val }).eq('userName', 'test_user').eq('hour', 0);
     }
 
@@ -255,28 +169,15 @@
         const mod = document.getElementById('module-selector').value;
         document.getElementById('q-content').innerHTML = '';
         window.isCurrentQActive = true;
-        
-        // UPDATED: Launch map with new skills
         const map = {
             'C6Transformation': window.initTransformationGame,
             'LinearSystem': window.initLinearSystemGame,
             'FigureGrowth': window.initFigureGrowthGame,
             'SolveX': window.initSolveXGame,
             'BoxPlot': window.initBoxPlotGame,
-            'HubAssignment': window.initHubAssignment,
-            'Similarity': window.initSimilarityGame,
-            'ComplexShapes': window.initComplexShapesGame,
-            'Graphing': window.initGraphingGame,
-            'DiamondMath': window.initDiamondMathGame,
-            'LinearMastery': window.initLinearGame // Assuming initLinearGame is the entry for skill_linear.js
+            'HubAssignment': window.initHubAssignment
         };
-        
-        if(map[mod]) { 
-            log(`🚀 Launching ${mod}`); 
-            map[mod](); 
-        } else {
-            log(`❌ Init function for ${mod} not found.`);
-        }
+        if(map[mod]) { log(`🚀 Launching ${mod}`); map[mod](); }
     }
 
     window.onload = () => { setTimeout(syncUIWithLesson, 1000); };
