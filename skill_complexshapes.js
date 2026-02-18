@@ -1,10 +1,8 @@
 /**
  * skill_complexshapes.js - Single Round Series Version
- * - Generates complex composite figures from random combinations of:
- * Rectangles, Squares, Trapezoids, Triangles, and Semicircles.
+ * - Generates complex composite figures from random combinations.
  * - Requires both Area and Perimeter to be correct.
- * - Random units and side lengths (0-200).
- * - Clickable hint regions for formulas.
+ * - Uses window.userMastery for consistency with other files.
  */
 
 var complexData = {
@@ -20,17 +18,21 @@ window.initComplexShapesGame = async function() {
     window.isCurrentQActive = true;
     window.currentQSeconds = 0;
 
-    if (!window.userProgress) window.userProgress = {};
+    // Consistency Fix: Use the same variable name as the Box Plot game
+    if (!window.userMastery) window.userMastery = {};
 
     try {
         if (window.supabaseClient && window.currentUser) {
+            const currentHour = sessionStorage.getItem('target_hour');
+            
             const { data } = await window.supabaseClient
                 .from('assignment')
                 .select('ComplexShapes')
                 .eq('userName', window.currentUser)
+                .eq('hour', currentHour)
                 .maybeSingle();
             
-            window.userProgress.ComplexShapes = data?.ComplexShapes || 0;
+            window.userMastery.ComplexShapes = data?.ComplexShapes || 0;
         }
     } catch (e) {
         console.log("Supabase sync error, using local state");
@@ -71,6 +73,7 @@ function generateComplexProblem() {
     if (type === 'triangle') {
         let triH = Math.floor(Math.random() * 50) + 30;
         let hyp = Math.sqrt(Math.pow(baseH, 2) + Math.pow(triH, 2));
+        
         complexData.components.push({
             type: 'triangle', base: baseH, height: triH, x: attachX, y: attachY,
             area: 0.5 * baseH * triH,
@@ -83,6 +86,7 @@ function generateComplexProblem() {
     } else if (type === 'semicircle') {
         let r = baseH / 2;
         let arc = Math.PI * r;
+        
         complexData.components.push({
             type: 'semicircle', r: r, x: attachX, y: attachY + r,
             area: (Math.PI * Math.pow(r, 2)) / 2,
@@ -233,11 +237,13 @@ window.checkComplexWin = async function() {
     const perimOK = (Math.abs(pVal - complexData.totalPerimeter) < 2.5) && (pUnit === 'linear');
 
     if (areaOK && perimOK) {
-        let newVal = Math.min(10, (window.userProgress.ComplexShapes || 0) + 1);
-        window.userProgress.ComplexShapes = newVal;
+        // Consistency Fix: Update userMastery
+        let newVal = Math.min(10, (window.userMastery.ComplexShapes || 0) + 1);
+        window.userMastery.ComplexShapes = newVal;
 
         if (window.supabaseClient && window.currentUser) {
             const currentHour = sessionStorage.getItem('target_hour') || "00";
+            // Ensure you have a 'ComplexShapes' column in your Supabase 'assignment' table!
             await window.supabaseClient
                 .from('assignment')
                 .update({ ComplexShapes: newVal })
