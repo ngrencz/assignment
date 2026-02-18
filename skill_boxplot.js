@@ -5,7 +5,7 @@
     let boxErrorCount = 0;
     let boxPlotStep = 0; 
     let boxPlotSessionQuestions = [];
-    let sessionCorrectFirstTry = 0; // NEW: Tracks session performance
+    let sessionCorrectFirstTry = 0; // Tracks session performance
 
     // 2. Init Function
     window.initBoxPlotGame = async function() {
@@ -15,11 +15,16 @@
         boxPlotStep = 0;
         sessionCorrectFirstTry = 0; // Reset session tracker
 
+        // Fetch sub-skill mastery
         try {
+            // Get current hour for accurate DB lookup
+            const currentHour = sessionStorage.getItem('target_hour');
+            
             const { data } = await window.supabaseClient
                 .from('assignment')
                 .select('BoxPlot, bp_median, bp_range, bp_quartiles, bp_iqr')
                 .eq('userName', window.currentUser)
+                .eq('hour', currentHour)
                 .maybeSingle();
             
             window.userMastery = data || {};
@@ -36,6 +41,7 @@
             { q: "What is the IQR?", a: currentBoxData.q3 - currentBoxData.q1, hint: "Q3 - Q1 (The width of the box).", col: "bp_iqr" }
         ];
 
+        // Pick 3 random questions from the pool
         boxPlotSessionQuestions = pool.sort(() => 0.5 - Math.random()).slice(0, 3);
         renderBoxUI();
     };
@@ -49,6 +55,7 @@
             let arr = [];
             const skewFactor = (Math.random() * 2) + 0.5; 
 
+            // 11 items ensures Median, Q1, and Q3 are exact integers (indices 2, 5, 8)
             for(let i=0; i<11; i++) {
                 let rand = Math.pow(Math.random(), skewFactor);
                 let val = Math.floor(rand * 36) + 2;
@@ -201,25 +208,27 @@
             feedback.className = "correct";
             feedback.innerText = "✅ Correct!";
 
-            // 1. Update Session Tracker
-            // If they got it right with NO errors on this step, it counts as a "clean" answer
+            // 1. Update Session Tracker (Perfect Step)
             if (boxErrorCount === 0) {
                 sessionCorrectFirstTry++;
             }
 
-            // 2. Update SUB-SKILL immediately (as requested)
-            // We use boxErrorCount here: if 0 errors = +1, else no change
+            // 2. Update SUB-SKILL immediately
+            // Logic: if 0 errors = +1 score, else no change
             let subAdjustment = (boxErrorCount === 0) ? 1 : 0; 
             const updateObj = {};
+            // Ensure we don't go above 10
             updateObj[current.col] = Math.min(10, (window.userMastery?.[current.col] || 0) + subAdjustment);
             
-            // NOTE: We do NOT update 'BoxPlot' (aggregate) here anymore!
+            // Get Hour from session to ensure we update the right row
+            const currentHour = sessionStorage.getItem('target_hour');
 
             if (window.supabaseClient && window.currentUser) {
                 await window.supabaseClient
                     .from('assignment')
                     .update(updateObj)
-                    .eq('userName', window.currentUser);
+                    .eq('userName', window.currentUser)
+                    .eq('hour', currentHour);
             }
 
             // Update Local State for Sub-skill
@@ -250,7 +259,7 @@
 
         // SCORING LOGIC:
         // 3/3 Correct (100%) -> +1
-        // 2/3 Correct (66%)  -> No Change (Neither >75% nor <=50%)
+        // 2/3 Correct (66%)  -> No Change
         // 0-1 Correct (<=33%) -> -1
         
         let mainAdjustment = 0;
@@ -263,13 +272,15 @@
         if (mainAdjustment !== 0) {
             const currentMain = window.userMastery?.['BoxPlot'] || 0;
             const newMain = Math.max(0, Math.min(10, currentMain + mainAdjustment));
+            const currentHour = sessionStorage.getItem('target_hour');
 
             // Update DB
             if (window.supabaseClient && window.currentUser) {
                 await window.supabaseClient
                     .from('assignment')
                     .update({ 'BoxPlot': newMain })
-                    .eq('userName', window.currentUser);
+                    .eq('userName', window.currentUser)
+                    .eq('hour', currentHour);
             }
             
             // Update Local
