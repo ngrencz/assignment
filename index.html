@@ -5,8 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Math Portal | Login</title>
     <link rel="stylesheet" href="style.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        const SB_URL = "https://khazeoycsjdqnmwodncw.supabase.co";
+        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoYXplb3ljc2pkcW5td29kbmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MDMwOTMsImV4cCI6MjA3ODQ3OTA5M30.h-WabaGcQZ968sO2ImetccUaRihRFmO2mUKCdPiAbEI";
+        const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+    </script>
+
     <style>
-        /* Basic centering for the login bubble */
+        /* Your specific layout styles */
         body { 
             display: flex; 
             justify-content: center; 
@@ -48,65 +57,64 @@
     </div>
 
     <div class="field-group">
-    <label>Class Period</label>
-    <select id="hour-select">
-        <option value="00">Guest</option>
-        <option value="01">01</option>
-        <option value="02">02</option>
-        <option value="03">03</option>
-        <option value="04">04</option>
-        <option value="05">05</option>
-        <option value="06">06</option>
-        <option value="07">07</option>
-    </select>
-</div>
+        <label>Class Period</label>
+        <select id="hour-select">
+            <option value="00">Guest</option>
+            <option value="01">01</option>
+            <option value="02">02</option>
+            <option value="03">03</option>
+            <option value="04">04</option>
+            <option value="05">05</option>
+            <option value="06">06</option>
+            <option value="07">07</option>
+        </select>
+    </div>
 
-<div class="field-group">
-    <label>Assignment</label>
-    <select id="lesson-select">
-        <option value="C6Review">Chapter 6 Review</option>
-    </select>
-</div>
+    <div class="field-group">
+        <label>Assignment</label>
+        <select id="lesson-select">
+            <option value="C6Review">Chapter 6 Review</option>
+        </select>
+    </div>
 
     <button onclick="handleLogin()">Start Practice</button>
 </div>
 
 <script>
     async function handleLogin() {
-    const user = document.getElementById('username-input').value.trim();
-    const hour = document.getElementById('hour-select').value; // e.g., "01" or "00"
-    const lesson = document.getElementById('lesson-select').value; // "C6Review"
+        const user = document.getElementById('username-input').value.trim();
+        const hour = document.getElementById('hour-select').value;
+        const lesson = document.getElementById('lesson-select').value;
 
-    if (!user) {
-        alert("Please enter a username.");
-        return;
-    }
-
-    // 1. Check user/lesson status in Supabase
-    try {
-        const { data, error } = await supabaseClient
-            .from('assignment')
-            .select('*')
-            .eq('userName', user)
-            .eq('hour', hour)
-            .maybeSingle();
-
-        if (data && data[lesson] === true) {
-            alert(`Note: The assignment "${lesson}" is already marked as completed for this user.`);
+        if (!user) {
+            alert("Please enter a username.");
+            return;
         }
-    } catch (err) {
-        console.error("Status check error:", err);
+
+        // Status Check: Only alert if the specific user/hour/lesson combo is done
+        try {
+            const { data, error } = await supabaseClient
+                .from('assignment')
+                .select('*')
+                .eq('userName', user)
+                .eq('hour', hour)
+                .maybeSingle();
+
+            if (data && data[lesson] === true) {
+                alert(`Note: The assignment "${lesson}" is already marked as completed for this user.`);
+            }
+        } catch (err) {
+            console.error("Status check error:", err);
+        }
+
+        // Save session data and move to the hub
+        sessionStorage.setItem('current_user', user);
+        sessionStorage.setItem('target_hour', hour);
+        sessionStorage.setItem('target_lesson', lesson);
+        sessionStorage.setItem('total_work_time', 0);
+
+        window.location.href = 'assignment.html';
     }
-
-    // 2. Store session data for the Hub
-    sessionStorage.setItem('current_user', user);
-    sessionStorage.setItem('target_hour', hour);
-    sessionStorage.setItem('target_lesson', lesson);
-    sessionStorage.setItem('total_work_time', 0);
-
-    // 3. Redirect to portal
-    window.location.href = 'assignment.html';
-}
 </script>
 
 </body>
