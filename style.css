@@ -8,7 +8,7 @@
     --gray-light: #edf2f7;
     --gray-med: #e2e8f0;
     --gray-text: #718096;
-    --shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+    --shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
     --border-radius: 20px;
 }
 
@@ -19,12 +19,14 @@ body {
     color: var(--black);
     margin: 0;
     padding: 20px;
+    /* FIX: Removed 'align-items: center' so full-width layouts (like the dashboard) can work. */
     display: flex;
-    flex-direction: column;
-    align-items: center;
+    flex-direction: column; 
+    box-sizing: border-box;
+    min-height: 100vh;
 }
 
-/* --- Container & Layout --- */
+/* --- Container & Layout (For Learning Modules) --- */
 .container {
     width: 100%;
     max-width: 800px;
@@ -34,6 +36,9 @@ body {
     box-shadow: var(--shadow);
     border: 1px solid var(--gray-med);
     box-sizing: border-box;
+    
+    /* FIX: This keeps the old pages centered now that body isn't doing it */
+    margin: 0 auto; 
 }
 
 header {
@@ -45,9 +50,13 @@ header {
     background: var(--pure-white);
     padding: 15px 25px;
     border-radius: 15px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow);
     margin-bottom: 20px;
     box-sizing: border-box;
+    
+    /* FIX: Ensures header stays centered on learning pages */
+    margin-left: auto;
+    margin-right: auto;
 }
 
 /* --- Typography --- */
@@ -110,7 +119,7 @@ input:focus {
 
 .math-input:focus {
     border-color: var(--kelly-green);
-    background-color: #f0fff4; /* Very light green hint */
+    background-color: #f0fff4; 
 }
 
 /* --- Timer --- */
@@ -122,6 +131,10 @@ input:focus {
     color: var(--pure-white);
     padding: 5px 15px;
     border-radius: 8px;
+}
+#debug-total-time.idle {
+    color: #ff4d4d;
+    box-shadow: 0 0 10px rgba(255, 77, 77, 0.5);
 }
 
 /* --- Feedback States --- */
@@ -139,33 +152,6 @@ input:focus {
     border-radius: 4px;
     border: 1px solid var(--gray-light);
 }
-#size-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(124, 58, 237, 0.95); /* Deep Purple */
-    color: white;
-    z-index: 9999;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    font-family: sans-serif;
-}
-
-#size-overlay.active {
-    display: flex;
-}
-
-.overlay-icon {
-    font-size: 4rem;
-    margin-bottom: 20px;
-}
-.correct { background: #dcfce7; color: #166534; border: 2px solid var(--kelly-green); }
-.incorrect { background: #fee2e2; color: #991b1b; border: 2px solid #ef4444; }
 
 /* --- Canvas Logic --- */
 canvas {
@@ -175,7 +161,7 @@ canvas {
     border: 1px solid var(--gray-med);
 }
 
-/* Styles the 'RUNNING', 'PAUSED', or 'PLEASE WAIT' badges */
+/* --- Pucks/Badges --- */
 .stats-pill, .lesson-pill {
     padding: 4px 12px;
     border-radius: 20px;
@@ -187,12 +173,30 @@ canvas {
 }
 
 .lesson-pill {
-    background: #e0f2fe; /* Light blue for the lesson name */
+    background: #e0f2fe; 
     color: #0369a1;
 }
 
-/* Add this to catch the 'IDLE' state logic from assignment_hub.js */
-#debug-total-time.idle {
-    color: #ff4d4d;
-    box-shadow: 0 0 10px rgba(255, 77, 77, 0.5);
+.correct { background: #dcfce7; color: #166534; border: 2px solid var(--kelly-green); }
+.incorrect { background: #fee2e2; color: #991b1b; border: 2px solid #ef4444; }
+
+/* --- Overlay --- */
+#size-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(124, 58, 237, 0.95);
+    color: white;
+    z-index: 9999;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+#size-overlay.active {
+    display: flex;
 }
