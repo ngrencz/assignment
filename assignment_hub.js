@@ -32,6 +32,27 @@ window.hasLoadedTime = false;
 // This "Bridge" pulls data from the login page and gives it to the math scripts
 window.currentHour = sessionStorage.getItem('target_hour');
 
+// --- Activity Reset Logic ---
+['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, () => {
+        // Update the timestamp to current time
+        window.lastActivity = Date.now();
+        
+        // If the system was paused due to IDLE, wake it up
+        if (window.isIdle) {
+            window.isIdle = false;
+            console.log("Activity detected: System Awake");
+            
+            // Immediate UI feedback
+            const statePill = document.getElementById('timer-state-pill');
+            if (statePill) {
+                statePill.innerText = "RUNNING";
+                statePill.style.background = "#22c55e";
+            }
+        }
+    });
+});
+
 // Debug check to make sure the data arrived
 console.log("Session Loaded:", window.currentUser, window.currentHour);
 const GOAL_SECONDS = timeRequirements[window.targetLesson] || timeRequirements['default'];
