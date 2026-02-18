@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Debugger | int8 Edition</title>
+    <title>Dev Control | Fixed Table Logic</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -50,10 +50,10 @@
         <div class="control-stack">
             <div class="card">
                 <h3 style="margin-top:0;">1. DB Config</h3>
-                <label style="font-size: 11px;">Table Name (Case Sensitive):</label>
+                <label style="font-size: 11px;">Target Table (The one holding columns):</label>
                 <select id="table-selector" onchange="ensureTestUser()">
-                    <option value="C6Review">C6Review</option>
                     <option value="assignment">assignment</option>
+                    <option value="C6Review">C6Review (Incorrect/Not a table)</option>
                 </select>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <button onclick="ensureTestUser()" style="background: var(--kelly-green); color: white;">Sync/Join</button>
@@ -74,17 +74,19 @@
             </div>
 
             <div class="card">
-                <h3 style="margin-top:0;">3. Skill Sliders</h3>
-                
+                <h3 style="margin-top:0;">3. Skill Scores</h3>
                 <div class="slider-group"><div class="slider-label">SolveX <span id="v-SolveX">0</span></div><input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')"></div>
                 <div class="slider-group"><div class="slider-label">Linear System <span id="v-LinearSystem">0</span></div><input type="range" id="s-LinearSystem" min="0" max="10" value="0" oninput="updateVal('LinearSystem')"></div>
                 <div class="slider-group"><div class="slider-label">Figure Growth <span id="v-FigureGrowth">0</span></div><input type="range" id="s-FigureGrowth" min="0" max="10" value="0" oninput="updateVal('FigureGrowth')"></div>
                 <div class="slider-group"><div class="slider-label">Box Plot <span id="v-BoxPlot">0</span></div><input type="range" id="s-BoxPlot" min="0" max="10" value="0" oninput="updateVal('BoxPlot')"></div>
 
                 <details>
-                    <summary>Transformation Sub-skills <span id="v-C6Transformation" style="float:right;">0</span></summary>
+                    <summary>Transformation Columns <span id="v-C6Transformation" style="float:right;">0</span></summary>
                     <div style="padding-top: 10px; display: grid; gap: 8px;">
-                        <input type="range" id="s-C6Transformation" min="0" max="10" value="0" oninput="updateVal('C6Transformation')">
+                        <div class="slider-label" style="font-size:11px;">C6Review Column <span id="v-C6Review">0</span></div>
+                        <input type="range" id="s-C6Review" min="0" max="10" value="0" oninput="updateVal('C6Review')">
+                        
+                        <hr style="border:0; border-top:1px solid #eee;">
                         <div><div class="slider-label" style="font-size:11px;">Translation <span id="v-C6Translation">0</span></div><input type="range" id="s-C6Translation" min="0" max="10" value="0" oninput="updateVal('C6Translation')"></div>
                         <div><div class="slider-label" style="font-size:11px;">Reflect X <span id="v-C6ReflectionX">0</span></div><input type="range" id="s-C6ReflectionX" min="0" max="10" value="0" oninput="updateVal('C6ReflectionX')"></div>
                         <div><div class="slider-label" style="font-size:11px;">Reflect Y <span id="v-C6ReflectionY">0</span></div><input type="range" id="s-C6ReflectionY" min="0" max="10" value="0" oninput="updateVal('C6ReflectionY')"></div>
@@ -98,7 +100,7 @@
         <div class="main-stack">
             <div class="card">
                 <h3 style="margin-top: 0;">System Log</h3>
-                <div id="log" class="log-box">Waiting for initialization...</div>
+                <div id="log" class="log-box">Ready.</div>
             </div>
             <div class="card" style="min-height: 450px;">
                 <div id="work-area"><div id="q-content"></div></div>
@@ -107,14 +109,13 @@
     </div>
 
     <script>
-        // CONFIG FOR int8 HOUR
         window.currentUser = 'test_user';
-        window.currentHour = 0; // The int8 representation of "00"
+        window.currentHour = 0; 
 
+        // Added 'C6Review' to the sync list since it is a column in your 'assignment' table
         const ALL_COLUMNS = [
-            'SolveX', 'LinearSystem', 'FigureGrowth', 'BoxPlot', 
-            'C6Transformation', 'C6Translation', 'C6ReflectionX', 
-            'C6ReflectionY', 'C6Rotation', 'C6Dilation'
+            'SolveX', 'LinearSystem', 'FigureGrowth', 'BoxPlot', 'C6Review',
+            'C6Translation', 'C6ReflectionX', 'C6ReflectionY', 'C6Rotation', 'C6Dilation'
         ];
 
         function getTable() { return document.getElementById('table-selector').value; }
@@ -132,10 +133,9 @@
             }
             window.supabaseClient = supabaseClient;
             const table = getTable();
-            log(`Checking table <strong>${table}</strong>...`);
+            log(`Querying TABLE: <strong>${table}</strong> for USER: <strong>${window.currentUser}</strong>...`);
 
             try {
-                // 1. Fetch user (int8 hour = 0)
                 let { data, error } = await window.supabaseClient
                     .from(table)
                     .select('*')
@@ -145,62 +145,62 @@
 
                 if (error) throw error;
 
-                // 2. Create if missing
                 if (!data) {
-                    log("ℹ️ test_user row missing. Provisioning fresh entry...");
+                    log("ℹ️ test_user/hour 0 not found. Creating row in " + table);
                     const newRow = { userName: window.currentUser, hour: window.currentHour };
                     ALL_COLUMNS.forEach(col => newRow[col] = 0);
-                    
-                    const { data: created, error: iErr } = await window.supabaseClient
-                        .from(table)
-                        .insert([newRow])
-                        .select()
-                        .single();
-
+                    const { data: created, error: iErr } = await window.supabaseClient.from(table).insert([newRow]).select().single();
                     if (iErr) throw iErr;
                     data = created;
-                    log("✅ New test record created in DB.", true);
+                    log("✅ New row provisioned.");
                 }
 
-                // 3. Populate Sliders
                 ALL_COLUMNS.forEach(col => {
                     const slider = document.getElementById('s-' + col);
                     if (slider && data[col] !== undefined) {
-                        slider.value = data[col];
+                        // Special handling if C6Review is a bool in your DB
+                        if (typeof data[col] === 'boolean') {
+                            slider.value = data[col] ? 10 : 0;
+                        } else {
+                            slider.value = data[col];
+                        }
                         document.getElementById('v-' + col).innerText = data[col];
                     }
                 });
-                log("✅ Local UI synced with Supabase.");
+                log("✅ Sync Complete.");
 
             } catch (err) {
                 log(`❌ Error: ${err.message}`, true);
-                log("Tip: Check if table name capitalization is exactly right.", false);
             }
         }
 
         async function updateVal(id) {
             const val = document.getElementById('s-' + id).value;
-            document.getElementById('v-' + id).innerText = val;
+            let finalVal = parseInt(val);
+            
+            // If the DB column is boolean, convert 0-10 to true/false
+            // Based on your screenshot showing 'bool' type for C6Review
+            if (id === 'C6Review') {
+                finalVal = (finalVal > 0); 
+            }
+
+            document.getElementById('v-' + id).innerText = finalVal;
+            
             if (window.supabaseClient) {
                 await window.supabaseClient
                     .from(getTable())
-                    .update({ [id]: parseInt(val) })
+                    .update({ [id]: finalVal })
                     .eq('userName', window.currentUser)
                     .eq('hour', window.currentHour);
-                log(`📡 Syncing ${id} -> ${val}`);
+                log(`📡 Column [${id}] updated to: ${finalVal}`);
             }
         }
 
         async function resetSession() {
-            if (!confirm("Wipe data?")) return;
+            if (!confirm("Wipe skills?")) return;
             const resetObj = {};
-            ALL_COLUMNS.forEach(c => resetObj[c] = 0);
-            await window.supabaseClient
-                .from(getTable())
-                .update(resetObj)
-                .eq('userName', window.currentUser)
-                .eq('hour', window.currentHour);
-            log("🗑️ Database wiped.");
+            ALL_COLUMNS.forEach(c => resetObj[c] = (c === 'C6Review' ? false : 0));
+            await window.supabaseClient.from(getTable()).update(resetObj).eq('userName', window.currentUser).eq('hour', window.currentHour);
             location.reload();
         }
 
