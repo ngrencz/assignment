@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dev Control | v1.8.2</title>
     
-    <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <script src="assignment_hub.js"></script>
@@ -14,60 +13,192 @@
     <script src="skill_figuregrowth.js"></script>
     <script src="skill_solveX.js"></script>
     <script src="skill_boxplot.js"></script>
-
+    
     <style>
-        /* CORE RESET - PROTECTING YOUR BUBBLE UI */
-        body { margin: 0; padding: 20px; font-family: 'Segoe UI', sans-serif; background: #f1f5f9; height: 100vh; box-sizing: border-box; overflow: hidden; }
+        /* --- 1. DEFINE VARIABLES LOCALLY (Or link to your global.css) --- */
+        :root {
+            --kelly-green: #4CBB17;
+            --dark-green: #3d9612;
+            --pure-white: #ffffff;
+            --soft-white: #f8f9fa;
+            --black: #1a1a1a;
+            --gray-light: #edf2f7;
+            --gray-med: #e2e8f0;
+            --gray-text: #718096;
+            --blue-accent: #0ea5e9;
+            --indigo-accent: #6366f1;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            --border-radius: 12px;
+        }
+
+        /* --- CORE LAYOUT --- */
+        body { 
+            margin: 0; 
+            padding: 20px; 
+            font-family: 'Segoe UI', sans-serif; 
+            background: var(--soft-white); 
+            height: 100vh; 
+            box-sizing: border-box; 
+            overflow: hidden; 
+            color: var(--black);
+        }
         
-        /* 1. TITLE BUBBLE */
+        /* --- HEADER --- */
         .header-card { 
-            background: white; border: 1px solid #e2e8f0; border-radius: 12px; 
-            padding: 12px 25px; margin-bottom: 20px; text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: center; align-items: center; gap: 15px;
+            background: var(--pure-white); 
+            border: 1px solid var(--gray-med); 
+            border-radius: var(--border-radius); 
+            padding: 12px 25px; 
+            margin-bottom: 20px; 
+            box-shadow: var(--shadow); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            gap: 15px;
         }
 
-        .master-grid { display: grid; grid-template-columns: 380px 1fr; gap: 20px; height: calc(100vh - 120px); }
+        .master-grid { 
+            display: grid; 
+            grid-template-columns: 350px 1fr; 
+            gap: 20px; 
+            height: calc(100vh - 120px); 
+        }
         
-        /* COLUMN 1: SIDEBAR (LOG ON TOP) */
-        .sidebar { display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        /* --- SIDEBAR --- */
+        .sidebar { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px; 
+            overflow-y: auto; 
+            padding-right: 5px; /* room for scrollbar */
+        }
         
-        /* 2. LOG BUBBLE */
+        /* Log Box */
         .log-card { 
-            background: #1a1a1a; border-radius: 12px; padding: 15px; 
-            height: 220px; display: flex; flex-direction: column; border: 1px solid #333;
+            background: var(--black); 
+            border-radius: var(--border-radius); 
+            padding: 15px; 
+            height: 200px; 
+            min-height: 200px;
+            display: flex; 
+            flex-direction: column; 
+            border: 1px solid #333;
         }
-        .log-box { flex-grow: 1; color: #4CBB17; font-family: monospace; font-size: 11px; overflow-y: auto; }
+        .log-box { 
+            flex-grow: 1; 
+            color: var(--kelly-green); 
+            font-family: 'Courier New', monospace; 
+            font-size: 11px; 
+            overflow-y: auto; 
+            line-height: 1.4;
+        }
 
-        /* 3. CONTROL BUBBLES */
-        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        /* Control Cards */
+        .card { 
+            background: var(--pure-white); 
+            border: 1px solid var(--gray-med); 
+            border-radius: var(--border-radius); 
+            padding: 18px; 
+            box-shadow: var(--shadow); 
+        }
 
-        /* COLUMN 2: GAME AREA */
-        .main-stage { display: flex; flex-direction: column; overflow: hidden; }
+        /* --- GAME AREA --- */
+        .main-stage { 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+            background: white;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--gray-med);
+            box-shadow: var(--shadow);
+            position: relative;
+        }
 
-        /* 4. GAME AREA BUBBLE - SOLVEX FIX */
         .game-card { 
-            background: white; border: 1px solid #e2e8f0; border-radius: 12px; 
-            padding: 50px; flex-grow: 1; overflow-y: auto; display: flex; 
-            flex-direction: column; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            justify-content: flex-start;
+            padding: 20px; 
+            flex-grow: 1; 
+            overflow-y: auto; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            /* This ensures the game content is centered but scrolls if tall */
+            justify-content: flex-start; 
         }
 
-        /* Restoring SolverX Two-Line Spacing */
-        #q-content { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 30px; }
+        /* --- UI ELEMENTS --- */
+        .section-tag { 
+            font-size: 11px; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+            border-bottom: 1px solid var(--gray-med); 
+            margin-bottom: 12px; 
+            display: block; 
+            letter-spacing: 0.5px;
+        }
+        
+        input[type="range"] { 
+            width: 100%; 
+            accent-color: var(--kelly-green); 
+            margin: 8px 0; 
+            cursor: pointer; 
+        }
+        
+        /* Unified Button Style */
+        button { 
+            cursor: pointer; 
+            font-weight: 700; 
+            padding: 12px; 
+            border-radius: 8px; 
+            border: none; 
+            background: var(--kelly-green); 
+            color: white; 
+            width: 100%; 
+            margin-top: 10px; 
+            transition: 0.2s;
+        }
+        button:hover { background: var(--dark-green); }
+        
+        select { 
+            width: 100%; 
+            padding: 10px; 
+            border-radius: 8px; 
+            border: 1px solid var(--gray-med); 
+            background: var(--pure-white); 
+            margin-bottom: 5px; 
+            font-family: inherit;
+        }
 
-        .section-tag { color: #0ea5e9; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #f1f5f9; margin-bottom: 12px; display: block; }
-        input[type="range"] { width: 100%; accent-color: #4CBB17; margin: 8px 0; cursor: pointer; }
-        button { cursor: pointer; font-weight: bold; padding: 12px; border-radius: 8px; border: none; background: #6366f1; color: white; width: 100%; margin-top: 10px; }
-        select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; margin-bottom: 5px; }
-        .slider-label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
-        details summary { cursor: pointer; font-size: 13px; font-weight: bold; margin: 8px 0; outline: none; }
+        .slider-label { 
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 12px; 
+            font-weight: 600; 
+            color: var(--gray-text);
+        }
+
+        details summary { 
+            cursor: pointer; 
+            font-size: 13px; 
+            font-weight: bold; 
+            margin: 8px 0; 
+            outline: none; 
+            color: var(--black);
+        }
+        
+        /* Scrollbar styling for sidebar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
 <body>
 
 <div class="header-card">
-    <h1 style="margin:0; font-size: 18px;">Module <span style="color:#4CBB17">Troubleshooter</span></h1>
-    <div style="color:#64748b; font-size: 12px; border-left: 1px solid #ddd; padding-left: 15px;">Target: <b>test_user</b> | v1.8.2</div>
+    <h1 style="margin:0; font-size: 18px;">Module <span style="color:var(--kelly-green)">Troubleshooter</span></h1>
+    <div style="color:var(--gray-text); font-size: 12px; border-left: 1px solid var(--gray-med); padding-left: 15px;">
+        Target: <b>test_user</b> | v1.8.2
+    </div>
 </div>
 
 <div class="master-grid">
@@ -77,14 +208,14 @@
             <div class="log-box" id="log">Debugger Ready...</div>
         </div>
 
-        <div class="card" style="border-top: 4px solid #0ea5e9;">
-            <span class="section-tag">1. Context Control</span>
+        <div class="card" style="border-top: 4px solid var(--blue-accent);">
+            <span class="section-tag" style="color:var(--blue-accent)">1. Context Control</span>
             <select id="lesson-selector" onchange="syncUIWithLesson()">
                 <option value="">-- Choose Lesson --</option>
                 <option value="C6Review">C6Review</option>
             </select>
             <div id="assign-state-ui" style="display:none; margin-top:10px;">
-                <label style="font-size:11px; font-weight:bold;">Boolean (C6Review):</label>
+                <label style="font-size:11px; font-weight:bold; color:var(--gray-text);">Boolean (C6Review):</label>
                 <select id="bool-toggle" onchange="updateAssignmentBool()">
                     <option value="false">False</option>
                     <option value="true">True</option>
@@ -92,31 +223,44 @@
             </div>
         </div>
 
-        <div class="card" style="border-top: 4px solid #6366f1;">
-            <span class="section-tag">2. Force Launch</span>
+        <div class="card" style="border-top: 4px solid var(--indigo-accent);">
+            <span class="section-tag" style="color:var(--indigo-accent)">2. Force Launch</span>
             <select id="module-selector">
-                <option value="SolveX">SolveX</option>
                 <option value="C6Transformation">Transformations</option>
+                <option value="SolveX">SolveX</option>
                 <option value="LinearSystem">Linear Systems</option>
                 <option value="FigureGrowth">Figure Growth</option>
                 <option value="BoxPlot">Box Plots</option>
                 <option value="HubAssignment">Hub Assignment</option>
             </select>
-            <button onclick="forceLoadModule()">🚀 Launch Module</button>
+            <button onclick="forceLoadModule()" style="background:var(--indigo-accent)">🚀 Launch Module</button>
         </div>
 
-        <div class="card">
-            <span class="section-tag">3. Mastery Controls</span>
-            <div class="slider-label">SolveX <span id="v-SolveX">0</span></div><input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')">
-            <div class="slider-label">Linear System <span id="v-LinearSystem">0</span></div><input type="range" id="s-LinearSystem" min="0" max="10" value="0" oninput="updateVal('LinearSystem')">
-            <div class="slider-label">Figure Growth <span id="v-FigureGrowth">0</span></div><input type="range" id="s-FigureGrowth" min="0" max="10" value="0" oninput="updateVal('FigureGrowth')">
+        <div class="card" style="border-top: 4px solid var(--kelly-green);">
+            <span class="section-tag" style="color:var(--kelly-green)">3. Mastery Controls</span>
+            
+            <div class="slider-label">Transformations <span id="v-C6Transformation">0</span></div>
+            <input type="range" id="s-C6Transformation" min="0" max="10" value="0" oninput="updateVal('C6Transformation')">
 
-            <details>
-                <summary>Box Plot Skills: <span id="agg-BoxPlot">0</span></summary>
+            <div class="slider-label">SolveX <span id="v-SolveX">0</span></div>
+            <input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')">
+            
+            <div class="slider-label">Linear System <span id="v-LinearSystem">0</span></div>
+            <input type="range" id="s-LinearSystem" min="0" max="10" value="0" oninput="updateVal('LinearSystem')">
+            
+            <div class="slider-label">Figure Growth <span id="v-FigureGrowth">0</span></div>
+            <input type="range" id="s-FigureGrowth" min="0" max="10" value="0" oninput="updateVal('FigureGrowth')">
+
+            <details style="margin-top:10px; border-top:1px solid var(--gray-med); padding-top:5px;">
+                <summary>Box Plot Details</summary>
+                <div class="slider-label">Total <span id="agg-BoxPlot">0</span></div>
                 <input type="range" id="s-BoxPlot" min="0" max="10" value="0" oninput="updateVal('BoxPlot')">
-                <div class="slider-label" style="font-size:10px;">Median <span id="v-BoxPlotMedian">0</span></div><input type="range" id="s-BoxPlotMedian" min="0" max="10" value="0" oninput="updateVal('BoxPlotMedian')">
-                <div class="slider-label" style="font-size:10px;">IQR <span id="v-BoxPlotIQR">0</span></div><input type="range" id="s-BoxPlotIQR" min="0" max="10" value="0" oninput="updateVal('BoxPlotIQR')">
-                <div class="slider-label" style="font-size:10px;">Outliers <span id="v-BoxPlotOutlier">0</span></div><input type="range" id="s-BoxPlotOutlier" min="0" max="10" value="0" oninput="updateVal('BoxPlotOutlier')">
+                
+                <div class="slider-label" style="font-size:10px; color:var(--gray-text);">Median <span id="v-BoxPlotMedian">0</span></div>
+                <input type="range" id="s-BoxPlotMedian" min="0" max="10" value="0" oninput="updateVal('BoxPlotMedian')">
+                
+                <div class="slider-label" style="font-size:10px; color:var(--gray-text);">IQR <span id="v-BoxPlotIQR">0</span></div>
+                <input type="range" id="s-BoxPlotIQR" min="0" max="10" value="0" oninput="updateVal('BoxPlotIQR')">
             </details>
         </div>
     </div>
@@ -124,51 +268,119 @@
     <div class="main-stage">
         <div class="game-card">
             <div id="q-content">
-                </div>
+               <div style="color:var(--gray-text); margin-top:100px;">Select a module to begin debugging.</div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
     const TABLE = 'assignment';
-    const ALL_COLS = ['SolveX','LinearSystem','FigureGrowth','BoxPlot','BoxPlotMedian','BoxPlotIQR','BoxPlotOutlier','C6Transformation','C6Translation','C6ReflectionX','C6ReflectionY','C6Rotation','C6Dilation','C6Review'];
+    // Included 'C6Transformation' specifically for your new module
+    const ALL_COLS = [
+        'SolveX','LinearSystem','FigureGrowth',
+        'BoxPlot','BoxPlotMedian','BoxPlotIQR','BoxPlotOutlier',
+        'C6Transformation','C6Translation','C6ReflectionX','C6ReflectionY','C6Rotation','C6Dilation',
+        'C6Review'
+    ];
 
-    function log(m) { const l=document.getElementById('log'); l.innerHTML+=`<br>[${new Date().toLocaleTimeString()}] ${m}`; l.scrollTop=l.scrollHeight; }
+    function log(m) { 
+        const l = document.getElementById('log'); 
+        l.innerHTML += `<br>[${new Date().toLocaleTimeString()}] ${m}`; 
+        l.scrollTop = l.scrollHeight; 
+    }
 
     async function syncUIWithLesson() {
         const lesson = document.getElementById('lesson-selector').value;
         document.getElementById('assign-state-ui').style.display = lesson ? 'block' : 'none';
+        
+        if (!window.supabaseClient) {
+            log("⚠️ Supabase Client not found.");
+            return;
+        }
+
         try {
-            const { data } = await window.supabaseClient.from(TABLE).select('*').eq('userName', 'test_user').eq('hour', 0).maybeSingle();
-            if(!data) return;
-            if(lesson === 'C6Review') document.getElementById('bool-toggle').value = (data.C6Review === true).toString();
+            const { data, error } = await window.supabaseClient
+                .from(TABLE)
+                .select('*')
+                .eq('userName', 'test_user')
+                .eq('hour', 0) // Ensure this matches your testing setup
+                .maybeSingle();
+            
+            if(error) { log("DB Error: " + error.message); return; }
+            if(!data) { log("No user data found for test_user"); return; }
+
+            // Sync Boolean Toggle
+            if(lesson === 'C6Review') {
+                document.getElementById('bool-toggle').value = (data.C6Review === true).toString();
+            }
+
+            // Sync Sliders
             ALL_COLS.forEach(c => {
-                const s=document.getElementById('s-'+c), v=document.getElementById('v-'+c), a=document.getElementById('agg-'+c);
+                const s = document.getElementById('s-'+c); // Slider
+                const v = document.getElementById('v-'+c); // Visual Number
+                const a = document.getElementById('agg-'+c); // Aggregate Visual
+                
                 const val = data[c] ?? 0;
-                if(s) s.value = val; if(v) v.innerText = val; if(a) a.innerText = val;
+                if(s) s.value = val; 
+                if(v) v.innerText = val; 
+                if(a) a.innerText = val;
             });
-            log(`DB Synced.`);
-        } catch(e) { log("Sync Error."); }
+            
+            log(`DB Synced successfully.`);
+        } catch(e) { log("Sync Exception: " + e); }
     }
 
     async function updateVal(id) {
         const val = parseInt(document.getElementById('s-'+id).value);
-        document.getElementById('v-'+id).innerText = val;
-        if(document.getElementById('agg-'+id)) document.getElementById('agg-'+id).innerText = val;
-        await window.supabaseClient.from(TABLE).update({ [id]: val }).eq('userName', 'test_user').eq('hour', 0);
+        
+        // Update UI immediately
+        const vEl = document.getElementById('v-'+id);
+        const aEl = document.getElementById('agg-'+id);
+        if(vEl) vEl.innerText = val;
+        if(aEl) aEl.innerText = val;
+
+        // Update DB
+        if(window.supabaseClient) {
+            await window.supabaseClient
+                .from(TABLE)
+                .update({ [id]: val })
+                .eq('userName', 'test_user')
+                .eq('hour', 0);
+        }
     }
 
     async function updateAssignmentBool() {
         const lesson = document.getElementById('lesson-selector').value;
         const val = document.getElementById('bool-toggle').value === 'true';
-        await window.supabaseClient.from(TABLE).update({ [lesson]: val }).eq('userName', 'test_user').eq('hour', 0);
-        log(`Boolean Update: ${lesson} = ${val}`);
+        
+        if(window.supabaseClient && lesson) {
+            await window.supabaseClient
+                .from(TABLE)
+                .update({ [lesson]: val })
+                .eq('userName', 'test_user')
+                .eq('hour', 0);
+            log(`Boolean Update: ${lesson} = ${val}`);
+        }
     }
 
     function forceLoadModule() {
         const mod = document.getElementById('module-selector').value;
-        document.getElementById('q-content').innerHTML = '';
+        const container = document.getElementById('q-content');
+        
+        // Clear previous game
+        container.innerHTML = ''; 
+        
+        // Create title if missing
+        if(!document.getElementById('q-title')) {
+             const t = document.createElement('h2');
+             t.id = 'q-title';
+             // We insert the title before q-content in the card
+             container.parentElement.insertBefore(t, container);
+        }
+
         window.isCurrentQActive = true;
+        
         const map = {
             'C6Transformation': window.initTransformationGame,
             'LinearSystem': window.initLinearSystemGame,
@@ -177,10 +389,23 @@
             'BoxPlot': window.initBoxPlotGame,
             'HubAssignment': window.initHubAssignment
         };
-        if(map[mod]) { log(`🚀 Launching ${mod}`); map[mod](); }
+        
+        if(map[mod]) { 
+            log(`🚀 Launching ${mod}`); 
+            map[mod](); 
+        } else {
+            log(`❌ Module ${mod} function not found.`);
+        }
     }
 
-    window.onload = () => { setTimeout(syncUIWithLesson, 1000); };
+    // Delay init to allow assignment_hub to initialize Supabase if it does so
+    window.onload = () => { 
+        log("Waiting for modules...");
+        setTimeout(() => {
+            log("Initializing Sync...");
+            syncUIWithLesson();
+        }, 1000); 
+    };
 </script>
 </body>
 </html>
