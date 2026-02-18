@@ -19,7 +19,7 @@ const timeRequirements = {
 window.totalSecondsWorked = 0; 
 window.isCurrentQActive = false;
 window.currentQSeconds = 0;
-window.currentUser = sessionStorage.getItem('current_user') || 'test_user';
+window.currentUser = sessionStorage.getItem('target_user') || 'test_user';
 window.targetLesson = sessionStorage.getItem('target_lesson') || 'C6Review';
 window.lastActivity = Date.now();
 window.isIdle = false;
@@ -29,7 +29,11 @@ window.canCount = false;
 window.resumeTimeout = null;
 window.isWindowLargeEnough = true;
 window.hasLoadedTime = false; 
+// This "Bridge" pulls data from the login page and gives it to the math scripts
+window.currentHour = sessionStorage.getItem('target_hour');
 
+// Debug check to make sure the data arrived
+console.log("Session Loaded:", window.currentUser, window.currentHour);
 const GOAL_SECONDS = timeRequirements[window.targetLesson] || timeRequirements['default'];
 
 // --- Window Size Checker Function (PURPLE OUT) ---
