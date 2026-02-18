@@ -145,16 +145,29 @@ window.checkSimilarityWin = async function() {
     const isYCorrect = Math.abs(userY - simData.yValue) < 0.01;
 
     if (isSFCorrect && isXCorrect && isYCorrect) {
-        // Success Logic mimicking Transformation module
-        let currentProgress = window.userProgress.Similarity || 0;
-        let newProgress = Math.min(10, currentProgress + 1);
-        window.userProgress.Similarity = newProgress;
+        // --- MATCHING YOUR TRANSFORMATION LOGIC ---
+        // 1. Calculate Skill Delta
+        let currentVal = window.userProgress.Similarity || 0;
+        let newVal = Math.max(0, Math.min(10, currentVal + 1)); // Standard +1 for correct
+        
+        // 2. Update Local Global State
+        window.userProgress.Similarity = newVal;
+        
+        // 3. Prepare Update Object
+        let updates = { Similarity: newVal };
 
+        // 4. Send to Supabase IMMEDIATELY
         if (window.supabaseClient && window.currentUser) {
-            await window.supabaseClient
-                .from('assignment')
-                .update({ Similarity: newProgress })
-                .eq('userName', window.currentUser);
+            try {
+                const currentHour = sessionStorage.getItem('target_hour') || "00";
+                await window.supabaseClient
+                    .from('assignment')
+                    .update(updates)
+                    .eq('userName', window.currentUser)
+                    .eq('hour', currentHour);
+            } catch (e) {
+                console.error("Similarity DB Update Failed:", e);
+            }
         }
 
         showFlash("Perfect!", "success");
@@ -169,7 +182,6 @@ window.checkSimilarityWin = async function() {
         showFlash(errorMsg, "error");
     }
 };
-
 function finishSimilarityGame() {
     window.isCurrentQActive = false;
     const qContent = document.getElementById('q-content');
