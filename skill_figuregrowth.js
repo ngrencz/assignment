@@ -247,9 +247,18 @@ window.checkFigureAns = async function() {
 };
 
 async function finishFigureGame() {
+    // 1. STOP the timer immediately
     window.isCurrentQActive = false;
-    const feedback = document.getElementById('feedback-box');
-    if(feedback) feedback.innerText = "Pattern Mastered!";
+
+    // 2. Consistent Visual Transition (replaces current content)
+    document.getElementById('q-content').innerHTML = `
+        <div style="text-align:center; padding:50px; animation: fadeIn 0.5s;">
+            <div style="font-size: 50px; margin-bottom: 20px;">🟦</div>
+            <h2 style="color: var(--black);">Pattern Mastered!</h2>
+            <p style="color: var(--gray-text);">You successfully modeled the growth rule.</p>
+            <p style="font-size: 0.9rem; color: var(--kelly-green); margin-top: 10px;">Loading next activity...</p>
+        </div>
+    `;
 
     if (window.supabaseClient && window.currentUser) {
         try {
@@ -278,8 +287,12 @@ async function finishFigureGame() {
         }
     }
 
+    // 3. Hand over to Hub after 2 seconds
     setTimeout(() => { 
-        if (typeof window.loadNextQuestion === 'function') window.loadNextQuestion();
-        else location.reload();
-    }, 1500);
+        if (typeof window.loadNextQuestion === 'function') {
+            window.loadNextQuestion();
+        } else {
+            location.reload();
+        }
+    }, 2000);
 }
