@@ -177,26 +177,31 @@ async function checkSolveX() {
 
         // 4. Decide Next Step
         if (problemsSolved >= problemsNeeded) {
-            // End of Set
+            // STOP the timer immediately
             window.isCurrentQActive = false;
+
+            // Update UI to show the set is finished
+            document.getElementById('q-content').innerHTML = `
+                <div style="text-align:center; padding:50px; animation: fadeIn 0.5s;">
+                    <div style="font-size: 50px; margin-bottom: 20px;">✅</div>
+                    <h2 style="color: var(--black);">Set Complete!</h2>
+                    <p style="color: var(--gray-text);">Mastery Level: ${currentScore}/10</p>
+                    <p style="font-size: 0.9rem; color: var(--kelly-green);">Loading next activity...</p>
+                </div>
+            `;
+
+            // Wait 2 seconds so the student can see their progress, then load next
             setTimeout(() => { 
                 if (typeof window.loadNextQuestion === 'function') {
                     window.loadNextQuestion(); 
                 } else {
-                    document.getElementById('q-content').innerHTML = `<div style="text-align:center; padding:50px;"><h2>Set Complete!</h2><p>Final Score: ${currentScore}</p></div>`;
+                    // Fallback if loadNextQuestion isn't defined
+                    console.log("Session complete. No further questions found.");
                 }
-            }, 1500);
+            }, 2000);
+
         } else {
-            // Next Question
+            // Set not finished yet, move to the next individual problem
             setTimeout(renderSolveXUI, 1500);
         }
-
-    } else {
-        // --- WRONG ANSWER ---
-        // Mark that they missed the first attempt
-        isFirstAttempt = false; 
-        
-        feedback.style.cssText = `display:block; ${errorStyle} margin-top:20px; padding:10px; border-radius:8px;`;
-        feedback.innerText = "Not quite. Check your math and try again.";
-    }
 }
