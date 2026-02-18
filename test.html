@@ -1,184 +1,231 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dev Control | v1.7.8</title>
+// --- Configuration & Supabase Init ---
+const SB_URL = "https://khazeoycsjdqnmwodncw.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoYXplb3ljc2pkcW5td29kbmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MDMwOTMsImV4cCI6MjA3ODQ3OTA5M30.h-WabaGcQZ968sO2ImetccUaRihRFmO2mUKCdPiAbEI";
+const isAssignmentPage = window.location.pathname.includes('assignment.html');
+
+window.supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+
+// Global State
+window.totalSecondsWorked = parseInt(sessionStorage.getItem('total_work_time')) || 0;
+window.isCurrentQActive = false;
+window.currentQSeconds = 0;
+window.currentUser = sessionStorage.getItem('current_user') || 'test_user';
+window.targetLesson = sessionStorage.getItem('target_lesson') || '6.2.4';
+window.lastActivity = Date.now();
+window.isIdle = false;
+window.hasDonePrimaryLesson = false;
+window.skillsCompletedThisSession = []; 
+window.canCount = false; 
+window.resumeTimeout = null;
+window.isWindowLargeEnough = true;
+
+// --- Window Size Checker Function ---
+function checkWindowSize() {
+    // Only run the strict sizing check on the real assignment page
+    if (!isAssignmentPage) {
+        window.isWindowLargeEnough = true;
+        return;
+    }
+
+    const screenWidth = window.screen.availWidth;
+    const screenHeight = window.screen.availHeight;
+    const winWidth = window.outerWidth;
+    const winHeight = window.outerHeight;
+    const overlay = document.getElementById('size-overlay');
+
+    if (winWidth < (screenWidth * 0.9) || winHeight < (screenHeight * 0.9)) {
+        window.isWindowLargeEnough = false;
+        if (overlay) overlay.classList.add('active');
+    } else {
+        window.isWindowLargeEnough = true;
+        if (overlay) overlay.classList.remove('active');
+    }
+}
+
+// --- Activity & Focus Listeners ---
+window.onblur = () => {
+    window.canCount = false;
+    clearTimeout(window.resumeTimeout);
+    if (typeof log === "function") log("⏸️ Window Lost Focus: Timer stopped.");
+};
+
+window.onfocus = () => {
+    if (typeof log === "function") log("⏱️ Window Regained.");
     
-    <link rel="stylesheet" href="style.css">
+    clearTimeout(window.resumeTimeout);
+
+    if (isAssignmentPage) {
+        // Apply the 15s penalty only to students
+        if (typeof log === "function") log("Penalty applied: 15s cooldown...");
+        window.resumeTimeout = setTimeout(() => {
+            window.canCount = true;
+        }, 15000);
+    } else {
+        // Dev mode: No penalty, instant resume
+        window.canCount = true;
+    }
+};
+
+window.addEventListener('resize', checkWindowSize);
+checkWindowSize(); // Initial check
+
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        window.canCount = false;
+        clearTimeout(window.resumeTimeout);
+    }
+});
+
+// Initial startup countdown
+if (!isAssignmentPage) {
+    window.canCount = true; 
+} else {
+    window.resumeTimeout = setTimeout(() => { window.canCount = true; }, 20000);
+}
+
+// --- The Master Timer Loop ---
+setInterval(() => {
+    // If we are NOT on the assignment page, don't run the timer logic at all
+    if (!isAssignmentPage) return;
+
+    const statePill = document.getElementById('timer-state-pill');
+    const totalDisplay = document.getElementById('debug-total-time');
+    const qTimeDisplay = document.getElementById('debug-q-time');
     
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <script src="assignment_hub.js"></script>
-    <script src="skill_transformation.js"></script>
-    <script src="skill_linearsystem.js"></script>
-    <script src="skill_figuregrowth.js"></script>
-    <script src="skill_solveX.js"></script>
-    <script src="skill_boxplot.js"></script>
+    // Inactivity check
+    const secondsSinceLastActivity = (Date.now() - window.lastActivity) / 1000;
+    if (secondsSinceLastActivity > 30) window.isIdle = true;
 
-    <style>
-        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: #f1f5f9; overflow: hidden; }
-        .header-bar { height: 40px; background: #fff; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; z-index: 10; }
+    const qContent = document.getElementById('q-content');
+    const hasQuestion = qContent && qContent.innerHTML.length > 50 && !qContent.innerText.includes("Wait...");
+
+    // SINGLE Condition for ticking
+    if (window.isCurrentQActive && window.canCount && hasQuestion && !window.isIdle && window.isWindowLargeEnough) {
+        window.totalSecondsWorked++;
+        window.currentQSeconds++;
+        sessionStorage.setItem('total_work_time', window.totalSecondsWorked);
+
+        // UI Updates
+        let mins = Math.floor(window.totalSecondsWorked / 60);
+        let secs = window.totalSecondsWorked % 60;
+        if (totalDisplay) totalDisplay.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs} / 12:00`;
+        if (qTimeDisplay) qTimeDisplay.innerText = `${window.currentQSeconds}s`;
         
-        /* THE TWO COLUMN LAYOUT */
-        .master-grid { display: grid; grid-template-columns: 350px 1fr; height: calc(100vh - 40px); }
+        if (statePill) {
+            statePill.innerText = "RUNNING";
+            statePill.style.background = "#22c55e";
+        }
         
-        /* COLUMN 1: SIDEBAR */
-        .sidebar { background: #f8fafc; border-right: 1px solid #cbd5e1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-        
-        /* COLUMN 2: MAIN STAGE (Log on top, Game below) */
-        .main-stage { display: flex; flex-direction: column; background: #fff; overflow: hidden; }
-        
-        .log-container { height: 200px; background: #1a1a1a; border-bottom: 2px solid #333; padding: 10px; overflow: hidden; display: flex; flex-direction: column; }
-        .log-box { flex-grow: 1; color: #4CBB17; font-family: monospace; font-size: 11px; overflow-y: auto; }
-        
-        .game-area { flex-grow: 1; padding: 30px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
-
-        /* Sidebar UI Elements */
-        .card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .section-tag { color: #0ea5e9; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; display: block; border-bottom: 1px solid #f1f5f9; }
-        input[type="range"] { width: 100%; accent-color: #4CBB17; margin: 5px 0; cursor: pointer; }
-        button { cursor: pointer; font-weight: bold; padding: 10px; border-radius: 6px; border: none; background: #6366f1; color: white; width: 100%; margin-top: 5px; transition: opacity 0.2s; }
-        button:hover { opacity: 0.9; }
-        select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; }
-        .slider-label { display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; }
-        details summary { cursor: pointer; font-size: 12px; font-weight: bold; margin: 5px 0; color: #444; }
-    </style>
-</head>
-<body>
-
-<div class="header-bar">
-    DEBUGGER: <span style="color:#4CBB17; margin: 0 5px;">Troubleshooter</span> | test_user | v1.7.8
-</div>
-
-<div class="master-grid">
-    <div class="sidebar">
-        <div class="card" style="border-top: 3px solid #0ea5e9;">
-            <span class="section-tag">1. Assignment Context</span>
-            <select id="lesson-selector" onchange="syncUIWithLesson()">
-                <option value="">-- Choose Lesson --</option>
-                <option value="C6Review">C6Review</option>
-            </select>
-            <div id="assign-state-ui" style="display:none; margin-top:8px;">
-                <label style="font-size:10px; font-weight:bold;">Bool State (DB):</label>
-                <select id="bool-toggle" onchange="updateAssignmentBool()">
-                    <option value="false">False</option>
-                    <option value="true">True</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="card" style="border-top: 3px solid #6366f1;">
-            <span class="section-tag">2. Force Launch</span>
-            <select id="module-selector">
-                <option value="SolveX">SolveX</option>
-                <option value="C6Transformation">Transformations</option>
-                <option value="LinearSystem">Linear Systems</option>
-                <option value="FigureGrowth">Figure Growth</option>
-                <option value="BoxPlot">Box Plots</option>
-                <option value="HubAssignment">Hub Assignment</option>
-            </select>
-            <button onclick="forceLoadModule()">🚀 Launch Module</button>
-        </div>
-
-        <div class="card">
-            <span class="section-tag">3. Mastery Controls</span>
-            <div class="slider-label">SolveX <span id="v-SolveX">0</span></div><input type="range" id="s-SolveX" min="0" max="10" value="0" oninput="updateVal('SolveX')">
-            <div class="slider-label">Linear System <span id="v-LinearSystem">0</span></div><input type="range" id="s-LinearSystem" min="0" max="10" value="0" oninput="updateVal('LinearSystem')">
-            <div class="slider-label">Figure Growth <span id="v-FigureGrowth">0</span></div><input type="range" id="s-FigureGrowth" min="0" max="10" value="0" oninput="updateVal('FigureGrowth')">
-
-            <details>
-                <summary>Box Plot Skills: <span id="agg-BoxPlot">0</span></summary>
-                <input type="range" id="s-BoxPlot" min="0" max="10" value="0" oninput="updateVal('BoxPlot')">
-                <div class="slider-label" style="font-size:10px;">Median <span id="v-BoxPlotMedian">0</span></div><input type="range" id="s-BoxPlotMedian" min="0" max="10" value="0" oninput="updateVal('BoxPlotMedian')">
-                <div class="slider-label" style="font-size:10px;">IQR <span id="v-BoxPlotIQR">0</span></div><input type="range" id="s-BoxPlotIQR" min="0" max="10" value="0" oninput="updateVal('BoxPlotIQR')">
-                <div class="slider-label" style="font-size:10px;">Outliers <span id="v-BoxPlotOutlier">0</span></div><input type="range" id="s-BoxPlotOutlier" min="0" max="10" value="0" oninput="updateVal('BoxPlotOutlier')">
-            </details>
-
-            <details>
-                <summary>Transformations: <span id="agg-C6Transformation">0</span></summary>
-                <input type="range" id="s-C6Transformation" min="0" max="10" value="0" oninput="updateVal('C6Transformation')">
-                <div class="slider-label" style="font-size:10px;">Translation <span id="v-C6Translation">0</span></div><input type="range" id="s-C6Translation" min="0" max="10" value="0" oninput="updateVal('C6Translation')">
-                <div class="slider-label" style="font-size:10px;">Rotation <span id="v-C6Rotation">0</span></div><input type="range" id="s-C6Rotation" min="0" max="10" value="0" oninput="updateVal('C6Rotation')">
-            </details>
-        </div>
-    </div>
-
-    <div class="main-stage">
-        <div class="log-container">
-            <div style="font-size: 10px; color: #888; margin-bottom: 5px; font-weight: bold; text-transform: uppercase;">System Log</div>
-            <div class="log-box" id="log">Ready for module launch...</div>
-        </div>
-        <div class="game-area">
-            <div id="q-content"></div>
-        </div>
-    </div>
-</div>
-
-<script>
-    const TABLE = 'assignment';
-    const ALL_COLS = ['SolveX','LinearSystem','FigureGrowth','BoxPlot','BoxPlotMedian','BoxPlotIQR','BoxPlotOutlier','C6Transformation','C6Translation','C6ReflectionX','C6ReflectionY','C6Rotation','C6Dilation','C6Review'];
-
-    function log(m) { const l=document.getElementById('log'); l.innerHTML+=`<br>[${new Date().toLocaleTimeString()}] ${m}`; l.scrollTop=l.scrollHeight; }
-
-    async function syncUIWithLesson() {
-        const lesson = document.getElementById('lesson-selector').value;
-        document.getElementById('assign-state-ui').style.display = lesson ? 'block' : 'none';
-        
-        try {
-            const { data } = await window.supabaseClient.from(TABLE).select('*').eq('userName', 'test_user').eq('hour', 0).maybeSingle();
-            if(!data) return;
-
-            if(lesson === 'C6Review') {
-                document.getElementById('bool-toggle').value = (data.C6Review === true).toString();
+        if (window.totalSecondsWorked >= 720) finishAssignment();
+    } else {
+        // Handle PAUSED states for students
+        if (statePill) {
+            if (!window.isWindowLargeEnough) {
+                statePill.innerText = "RESTORE WINDOW SIZE";
+                statePill.style.background = "#7c3aed";
+            } else if (!hasQuestion) {
+                statePill.innerText = "NO QUESTION";
+                statePill.style.background = "#64748b";
+            } else if (window.isIdle) {
+                statePill.innerText = "IDLE PAUSE";
+                statePill.style.background = "#f59e0b";
+            } else if (!window.canCount) {
+                statePill.innerText = "TAB PENALTY";
+                statePill.style.background = "#3b82f6";
+            } else {
+                statePill.innerText = "PAUSED";
+                statePill.style.background = "#ef4444";
             }
-
-            ALL_COLS.forEach(c => {
-                const s = document.getElementById('s-'+c), v = document.getElementById('v-'+c), a = document.getElementById('agg-'+c);
-                const dbVal = data[c] ?? 0;
-                if(s) s.value = dbVal;
-                if(v) v.innerText = dbVal;
-                if(a) a.innerText = dbVal;
-            });
-            log(`Sync Complete: ${lesson || 'Global'}`);
-        } catch(e) { log("Sync Error."); }
-    }
-
-    async function updateVal(id) {
-        const val = parseInt(document.getElementById('s-'+id).value);
-        document.getElementById('v-'+id).innerText = val;
-        if(document.getElementById('agg-'+id)) document.getElementById('agg-'+id).innerText = val;
-        await window.supabaseClient.from(TABLE).update({ [id]: val }).eq('userName', 'test_user').eq('hour', 0);
-    }
-
-    async function updateAssignmentBool() {
-        const lesson = document.getElementById('lesson-selector').value;
-        const val = document.getElementById('bool-toggle').value === 'true';
-        await window.supabaseClient.from(TABLE).update({ [lesson]: val }).eq('userName', 'test_user').eq('hour', 0);
-        log(`Assignment: ${lesson} -> ${val}`);
-    }
-
-    function forceLoadModule() {
-        const mod = document.getElementById('module-selector').value;
-        document.getElementById('q-content').innerHTML = '';
-        window.isCurrentQActive = true;
-
-        const map = {
-            'C6Transformation': window.initTransformationGame,
-            'LinearSystem': window.initLinearSystemGame,
-            'FigureGrowth': window.initFigureGrowthGame,
-            'SolveX': window.initSolveXGame,
-            'BoxPlot': window.initBoxPlotGame,
-            'HubAssignment': window.initHubAssignment
-        };
-
-        if(map[mod]) {
-            log(`🚀 Force Launch: ${mod}`);
-            map[mod](); 
         }
     }
+}, 1000);
 
-    window.onload = () => { setTimeout(syncUIWithLesson, 1000); };
-</script>
-</body>
-</html>
+// --- Adaptive Routing & Finish logic remains the same ---
+async function loadNextQuestion() {
+    if (window.isCurrentQActive) return;
+    window.currentQSeconds = 0; 
+    const feedback = document.getElementById('feedback-box');
+    if(feedback) {
+        feedback.style.display = 'none';
+        feedback.className = '';
+    }
+    
+    window.scrollTo(0,0);
+
+    const skillMap = [
+        { id: 'C6Transformation', fn: typeof initTransformationGame !== 'undefined' ? initTransformationGame : null },
+        { id: 'LinearSystem', fn: typeof initLinearSystemGame !== 'undefined' ? initLinearSystemGame : null },
+        { id: 'FigureGrowth', fn: typeof initFigureGrowthGame !== 'undefined' ? initFigureGrowthGame : null },
+        { id: 'SolveX', fn: typeof initSolveXGame !== 'undefined' ? initSolveXGame : null },
+        { id: 'BoxPlot', fn: typeof initBoxPlotGame !== 'undefined' ? initBoxPlotGame : null }
+    ].filter(s => s.fn !== null);
+
+    // CHANGE 1: Accept BOTH the old lesson and the new Review lesson
+    if (window.targetLesson === '6.2.4' || window.targetLesson === 'C6Review') {
+        
+        if (!window.hasDonePrimaryLesson) {
+            window.hasDonePrimaryLesson = true;
+            window.skillsCompletedThisSession.push('C6Transformation');
+            return initTransformationGame();
+        }
+
+        const { data, error } = await window.supabaseClient
+            .from('assignment')
+            .select('*')
+            .eq('userName', window.currentUser)
+            .maybeSingle(); 
+
+        if (error || !data) {
+            return skillMap[Math.floor(Math.random() * skillMap.length)].fn();
+        }
+
+        let availableSkills = skillMap.filter(s => !window.skillsCompletedThisSession.includes(s.id));
+        if (availableSkills.length === 0) {
+            window.skillsCompletedThisSession = [];
+            availableSkills = skillMap;
+        }
+
+        availableSkills.sort((a, b) => (data[a.id] || 0) - (data[b.id] || 0));
+        const nextSkill = availableSkills[0];
+        window.skillsCompletedThisSession.push(nextSkill.id);
+        nextSkill.fn();
+
+    } else {
+        document.getElementById('q-title').innerText = "Under Construction";
+        document.getElementById('q-content').innerHTML = `Lesson ${window.targetLesson} is not yet available.`;
+    }
+}
+
+async function finishAssignment() {
+    window.isCurrentQActive = false;
+
+    // Determine the database column based on the lesson
+    let dbColumn = 'C624_Completed'; // Default for the old lesson
+    
+    if (window.targetLesson === 'C6Review') {
+        dbColumn = 'C6Review'; // <--- Changed to your new column name
+    }
+
+    // Prepare the update object
+    const updateObj = {};
+    updateObj[dbColumn] = true;
+
+    try {
+        await window.supabaseClient
+            .from('assignment')
+            .update(updateObj)
+            .eq('userName', window.currentUser);
+
+        document.getElementById('work-area').innerHTML = `
+            <div style="text-align: center; padding: 40px; background: #f8fafc; border-radius: 12px; border: 2px solid #22c55e;">
+                <h1 style="color: #22c55e;">Goal Reached!</h1>
+                <p>Your 12 minutes of practice are logged.</p>
+                <button onclick="location.reload()" class="primary-btn">Start New Session</button>
+            </div>
+        `;
+    } catch (err) { 
+        console.error("Error saving completion:", err); 
+    }
+}
+
+window.onload = loadNextQuestion;
