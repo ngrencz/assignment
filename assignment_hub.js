@@ -8,8 +8,15 @@ if (!window.supabaseClient) {
     window.supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 }
 
+// --- Dynamic Time Requirements ---
+const timeRequirements = {
+    'C6Review': 35 * 60, // 35 minutes -> 2100s
+    '6.2.4': 12 * 60,    // 12 minutes -> 720s
+    'default': 12 * 60
+};
+
 // Global State
-window.totalSecondsWorked = 0; // Loaded from DB now
+window.totalSecondsWorked = 0; 
 window.isCurrentQActive = false;
 window.currentQSeconds = 0;
 window.currentUser = sessionStorage.getItem('current_user') || 'test_user';
@@ -21,9 +28,11 @@ window.skillsCompletedThisSession = [];
 window.canCount = false; 
 window.resumeTimeout = null;
 window.isWindowLargeEnough = true;
-window.hasLoadedTime = false; // Added to prevent timer starting before DB fetch
+window.hasLoadedTime = false; 
 
-// --- Window Size Checker Function ---
+const GOAL_SECONDS = timeRequirements[window.targetLesson] || timeRequirements['default'];
+
+// --- Window Size Checker Function (PURPLE OUT) ---
 function checkWindowSize() {
     if (!isAssignmentPage) {
         window.isWindowLargeEnough = true;
@@ -35,7 +44,8 @@ function checkWindowSize() {
     const screenHeight = window.screen.availHeight;
     const overlay = document.getElementById('size-overlay');
 
-    if (winWidth < (screenWidth * 0.9) || winHeight < (screenHeight * 0.9)) {
+    // LOOSENED: Now triggers at 80% screen size instead of 90%
+    if (winWidth < (screenWidth * 0.8) || winHeight < (screenHeight * 0.8)) {
         window.isWindowLargeEnough = false;
         if (overlay) overlay.classList.add('active');
     } else {
@@ -44,7 +54,7 @@ function checkWindowSize() {
     }
 }
 
-// --- Activity & Focus Listeners ---
+// --- Activity & Focus Listeners (RELAXED PENALTY) ---
 window.onblur = () => {
     window.canCount = false;
     clearTimeout(window.resumeTimeout);
@@ -52,8 +62,8 @@ window.onblur = () => {
 window.onfocus = () => {
     clearTimeout(window.resumeTimeout);
     if (isAssignmentPage) {
-        // Keep the penalty as it ensures the tab is actually active
-        window.resumeTimeout = setTimeout(() => { window.canCount = true; }, 15000);
+        // LOOSENED: 5 second wait instead of 15s
+        window.resumeTimeout = setTimeout(() => { window.canCount = true; }, 5000);
     } else {
         window.canCount = true;
     }
@@ -72,7 +82,8 @@ document.addEventListener('visibilitychange', () => {
 if (!isAssignmentPage) {
     window.canCount = true; 
 } else {
-    window.resumeTimeout = setTimeout(() => { window.canCount = true; }, 20000);
+    // LOOSENED: 5 second initial start wait instead of 20s
+    window.resumeTimeout = setTimeout(() => { window.canCount = true; }, 5000);
 }
 
 // --- The Master Timer Loop ---
@@ -81,10 +92,10 @@ setInterval(() => {
 
     const statePill = document.getElementById('timer-state-pill');
     const totalDisplay = document.getElementById('debug-total-time');
-    const qTimeDisplay = document.getElementById('debug-q-time');
     
+    // LOOSENED: 60s idle check instead of 30s
     const secondsSinceLastActivity = (Date.now() - window.lastActivity) / 1000;
-    if (secondsSinceLastActivity > 30) window.isIdle = true;
+    if (secondsSinceLastActivity > 60) window.isIdle = true;
 
     const qContent = document.getElementById('q-content');
     const hasQuestion = qContent && qContent.innerHTML.length > 50 && !qContent.innerText.includes("Wait...");
@@ -94,15 +105,13 @@ setInterval(() => {
         window.currentQSeconds++;
         
         // --- COUNTDOWN DISPLAY LOGIC ---
-        const goal = 720;
-        const remaining = Math.max(0, goal - window.totalSecondsWorked);
+        const remaining = Math.max(0, GOAL_SECONDS - window.totalSecondsWorked);
         let mins = Math.floor(remaining / 60);
         let secs = remaining % 60;
         
         if (totalDisplay) totalDisplay.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-        if (qTimeDisplay) qTimeDisplay.innerText = `${window.currentQSeconds}s`;
         
-        // --- DB SYNC LOGIC (Every 10 seconds) ---
+        // --- PERSISTENCE: Sync to Supabase every 10 seconds ---
         if (window.totalSecondsWorked % 10 === 0) {
             syncTimerToDB();
         }
@@ -112,7 +121,7 @@ setInterval(() => {
             statePill.style.background = "#22c55e";
         }
         
-        if (window.totalSecondsWorked >= 720) finishAssignment();
+        if (window.totalSecondsWorked >= GOAL_SECONDS) finishAssignment();
     } else {
         if (statePill) {
             if (!window.isWindowLargeEnough) {
@@ -125,7 +134,7 @@ setInterval(() => {
                 statePill.innerText = "IDLE PAUSE";
                 statePill.style.background = "#f59e0b";
             } else if (!window.canCount) {
-                statePill.innerText = "TAB PENALTY";
+                statePill.innerText = "PLEASE WAIT..."; 
                 statePill.style.background = "#3b82f6";
             } else {
                 statePill.innerText = "PAUSED";
@@ -135,18 +144,14 @@ setInterval(() => {
     }
 }, 1000);
 
-// --- New Sync Function ---
+// --- DB Persistence Sync ---
 async function syncTimerToDB() {
     const currentHour = sessionStorage.getItem('target_hour') || "00";
     const timerCol = `${window.targetLesson}Timer`;
-    const update = {};
-    update[timerCol] = window.totalSecondsWorked;
-    
-    await window.supabaseClient
-        .from('assignment')
-        .update(update)
-        .eq('userName', window.currentUser)
-        .eq('hour', currentHour);
+    const update = { [timerCol]: window.totalSecondsWorked };
+    try {
+        await window.supabaseClient.from('assignment').update(update).eq('userName', window.currentUser).eq('hour', currentHour);
+    } catch (e) { console.error("Sync error", e); }
 }
 
 // --- Adaptive Routing & DB Check/Create Logic ---
@@ -160,8 +165,11 @@ async function loadNextQuestion() {
     }
     
     window.scrollTo(0,0);
+
+    // Get the exact hour string from session storage
     const currentHour = sessionStorage.getItem('target_hour') || "00";
 
+    // 1. DYNAMIC DATABASE CHECK/CREATE LOGIC (RESTORED FULL VERSION)
     try {
         let { data, error } = await window.supabaseClient
             .from('assignment')
@@ -170,29 +178,45 @@ async function loadNextQuestion() {
             .eq('hour', currentHour)
             .maybeSingle();
 
+        // Create record if missing using the correct hour string
         if (!data && !error) {
-            const timerCol = `${window.targetLesson}Timer`;
-            const ins = { userName: window.currentUser, hour: currentHour };
-            ins[window.targetLesson] = false;
-            ins[timerCol] = 0;
+            console.warn(`User ${window.currentUser} not found for Hour ${currentHour}. Creating record...`);
+            await window.supabaseClient
+                .from('assignment')
+                .insert([{ 
+                    userName: window.currentUser, 
+                    hour: currentHour, 
+                    [window.targetLesson]: false,
+                    [`${window.targetLesson}Timer`]: 0
+                }]);
+            
+            // Re-fetch using the correct hour string
+            const { data: refreshed } = await window.supabaseClient
+                .from('assignment')
+                .select('*')
+                .eq('userName', window.currentUser)
+                .eq('hour', currentHour)
+                .maybeSingle();
+            data = refreshed;
+        }
 
-            await window.supabaseClient.from('assignment').insert([ins]);
-            window.totalSecondsWorked = 0;
-        } else {
-            // --- LOAD TIME & APPLY 30s PENALTY ---
+        if (data) {
             const timerCol = `${window.targetLesson}Timer`;
             const savedTime = data[timerCol] || 0;
+            // Apply 30s penalty on load
             window.totalSecondsWorked = Math.max(0, savedTime - 30);
             
             if (data[window.targetLesson] === true) {
-                window.totalSecondsWorked = 720;
+                window.totalSecondsWorked = GOAL_SECONDS;
             }
         }
         window.hasLoadedTime = true;
+
     } catch (err) {
         console.error("DB Initialization Error:", err);
     }
 
+    // --- Skill Mapping Logic (RESTORED FULL VERSION) ---
     const skillMap = [
         { id: 'C6Transformation', fn: typeof initTransformationGame !== 'undefined' ? initTransformationGame : null },
         { id: 'LinearSystem', fn: typeof initLinearSystemGame !== 'undefined' ? initLinearSystemGame : null },
@@ -201,7 +225,7 @@ async function loadNextQuestion() {
         { id: 'BoxPlot', fn: typeof initBoxPlotGame !== 'undefined' ? initBoxPlotGame : null }
     ].filter(s => s.fn !== null);
 
-    if (window.targetLesson === 'C6Review' || window.targetLesson === '6.2.4') {
+    if (window.targetLesson === '6.2.4' || window.targetLesson === 'C6Review') {
         
         if (!window.hasDonePrimaryLesson) {
             window.hasDonePrimaryLesson = true;
@@ -209,6 +233,7 @@ async function loadNextQuestion() {
             return initTransformationGame();
         }
 
+        // Fixed the fetch here to use currentHour
         const { data: skillData } = await window.supabaseClient
             .from('assignment')
             .select('*')
@@ -222,6 +247,7 @@ async function loadNextQuestion() {
             availableSkills = skillMap;
         }
 
+        // Sort by completion count
         availableSkills.sort((a, b) => (skillData ? (skillData[a.id] || 0) : 0) - (skillData ? (skillData[b.id] || 0) : 0));
         const nextSkill = availableSkills[0];
         window.skillsCompletedThisSession.push(nextSkill.id);
@@ -236,12 +262,12 @@ async function loadNextQuestion() {
 async function finishAssignment() {
     window.isCurrentQActive = false;
     const currentHour = sessionStorage.getItem('target_hour') || "00";
-    const dbColumn = window.targetLesson; 
     const timerCol = `${window.targetLesson}Timer`;
 
-    const updateObj = {};
-    updateObj[dbColumn] = true;
-    updateObj[timerCol] = 720; // Ensure timer shows 0:00
+    const updateObj = {
+        [window.targetLesson]: true,
+        [timerCol]: GOAL_SECONDS
+    };
 
     try {
         await window.supabaseClient
@@ -253,7 +279,7 @@ async function finishAssignment() {
         document.getElementById('work-area').innerHTML = `
             <div style="text-align: center; padding: 40px; background: #f8fafc; border-radius: 12px; border: 2px solid #22c55e;">
                 <h1 style="color: #22c55e;">Goal Reached!</h1>
-                <p>Your 12 minutes of practice for <strong>${window.targetLesson}</strong> are logged for Hour ${currentHour}.</p>
+                <p>Your ${GOAL_SECONDS / 60} minutes of practice for <strong>${window.targetLesson}</strong> are complete.</p>
                 <button onclick="location.reload()" class="primary-btn">Start New Session</button>
             </div>
         `;
