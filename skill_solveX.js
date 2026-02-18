@@ -204,4 +204,5 @@ async function checkSolveX() {
             // Set not finished yet, move to the next individual problem
             setTimeout(renderSolveXUI, 1500);
         }
+    }
 }
