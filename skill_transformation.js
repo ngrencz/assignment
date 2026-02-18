@@ -1,24 +1,26 @@
 /**
- * Transformation Geometry Game - V11 (Strict Scoring Fix)
- * - INPUTS: Default step=1, switches to 0.25 ONLY if decimals exist.
- * - SCORING: Strict comparison of User Moves vs Optimal Moves.
- * - SPLIT LOGIC: Only allows splitting 1 diagonal translation into exactly 2 orthogonal ones.
- * - SUPABASE: Updates immediately after every problem.
+ * skill_transformation.js
+ * - Interactive Transformation Game (Translation, Reflection, Rotation, Dilation).
+ * - Features "Strict Scoring": Detects if user splits a diagonal translation into two steps.
+ * - Adaptive: Weights specific transformation types based on sub-skill mastery.
+ * - Updates specific columns: C6Translation, C6ReflectionX, C6ReflectionY, C6Rotation, C6Dilation.
  */
 
-// Global State
-var currentShape = [];
-var targetShape = [];
-var originalStartShape = [];
-var currentRound = 1;
-var editingIndex = -1;
-var isAnimating = false;
-var moveSequence = [];
-var generatedMoves = []; // Optimal path
-var activeSkills = [];   // Skills used in current problem
+var transformData = {
+    currentShape: [],
+    targetShape: [],
+    startShape: [], // The state at the beginning of the round (for Reset)
+    round: 1,
+    maxRounds: 3,
+    editingIndex: -1,
+    isAnimating: false,
+    userMoves: [],
+    optimalMoves: [], // The computer generated path
+    activeSkills: [], // List of skill keys used in this problem
+    mastery: {}       // Local cache of user scores
+};
 
-// Shape Library
-const SHAPES = {
+const TF_SHAPES = {
     rightTriangle: [[0,0], [0,3], [3,0]],
     isoscelesTriangle: [[0,0], [2,4], [4,0]],
     rectangle: [[0,0], [0,2], [4,2], [4,0]],
@@ -28,113 +30,134 @@ const SHAPES = {
 };
 
 window.initTransformationGame = async function() {
-    // Safety check
     if (!document.getElementById('q-content')) return;
 
-    window.isCurrentQActive = true;
-    window.currentQSeconds = 0;
-    currentRound = 1;
+    // Reset State
+    transformData.round = 1;
+    transformData.userMoves = [];
+    transformData.isAnimating = false;
     
-    // Initialize userProgress if missing
-    if (!window.userProgress) {
-        window.userProgress = { 
-            C6Translation: 0, C6ReflectionX: 0, C6ReflectionY: 0, 
-            C6Rotation: 0, C6Dilation: 0, C6Transformation: 0 
-        };
-    }
+    // Init Mastery Cache
+    transformData.mastery = { 
+        C6Translation: 0, C6ReflectionX: 0, C6ReflectionY: 0, 
+        C6Rotation: 0, C6Dilation: 0, C6Transformation: 0 
+    };
 
-    // Attempt to fetch latest scores
+    if (!window.userMastery) window.userMastery = {};
+
+    // Sync from Supabase
     try {
         if (window.supabaseClient && window.currentUser) {
+            const h = sessionStorage.getItem('target_hour') || "00";
             const { data } = await window.supabaseClient
                 .from('assignment')
                 .select('C6Translation, C6ReflectionX, C6ReflectionY, C6Rotation, C6Dilation, C6Transformation')
                 .eq('userName', window.currentUser)
+                .eq('hour', h)
                 .maybeSingle();
             
             if (data) {
-                Object.keys(data).forEach(k => window.userProgress[k] = data[k] || 0);
+                Object.assign(transformData.mastery, data);
+                Object.assign(window.userMastery, data); // Sync global
             }
         }
-    } catch (e) {
-        console.log("Offline or sync error, using local defaults");
-    }
+    } catch (e) { console.log("Sync error", e); }
     
-    startNewRound();
+    startTransformRound();
 };
 
-function startNewRound() {
-    moveSequence = [];
-    generatedMoves = [];
-    activeSkills = [];
-    editingIndex = -1;
-    isAnimating = false;
+function startTransformRound() {
+    transformData.userMoves = [];
+    transformData.optimalMoves = [];
+    transformData.activeSkills = [];
+    transformData.editingIndex = -1;
+    transformData.isAnimating = false;
     
-    // Adaptive Logic
-    let skillWeights = [
-        { type: 'translation', key: 'C6Translation', score: window.userProgress.C6Translation },
-        { type: 'reflectX', key: 'C6ReflectionX', score: window.userProgress.C6ReflectionX },
-        { type: 'reflectY', key: 'C6ReflectionY', score: window.userProgress.C6ReflectionY },
-        { type: 'rotate', key: 'C6Rotation', score: window.userProgress.C6Rotation },
-        { type: 'dilation', key: 'C6Dilation', score: window.userProgress.C6Dilation }
+    // 1. Adaptive Weighting
+    let skills = [
+        { type: 'translation', key: 'C6Translation', score: transformData.mastery.C6Translation },
+        { type: 'reflectX', key: 'C6ReflectionX', score: transformData.mastery.C6ReflectionX },
+        { type: 'reflectY', key: 'C6ReflectionY', score: transformData.mastery.C6ReflectionY },
+        { type: 'rotate', key: 'C6Rotation', score: transformData.mastery.C6Rotation },
+        { type: 'dilation', key: 'C6Dilation', score: transformData.mastery.C6Dilation }
     ];
     
-    skillWeights.sort((a, b) => a.score - b.score);
+    // Prioritize lower scores
+    skills.sort((a, b) => a.score - b.score);
     
     let typePool = [];
-    skillWeights.forEach((skill, index) => {
-        let weight = index < 2 ? 4 : 1;
-        for(let k=0; k<weight; k++) typePool.push(skill);
+    skills.forEach((s, i) => {
+        let weight = (i < 2) ? 4 : 1; // Heavy weight for lowest 2 skills
+        for(let k=0; k<weight; k++) typePool.push(s);
     });
 
-    let validChallenge = false;
-    while (!validChallenge) {
-        const shapeKeys = Object.keys(SHAPES);
-        const baseCoords = SHAPES[shapeKeys[Math.floor(Math.random() * shapeKeys.length)]];
+    // 2. Generate Challenge
+    let valid = false;
+    let attempts = 0;
+
+    while (!valid && attempts < 50) {
+        attempts++;
+        const keys = Object.keys(TF_SHAPES);
+        const template = TF_SHAPES[keys[Math.floor(Math.random() * keys.length)]];
         
+        // Random offset
         let offX = Math.floor(Math.random() * 4) - 2;
         let offY = Math.floor(Math.random() * 4) - 2;
-        currentShape = baseCoords.map(p => [p[0] + offX, p[1] + offY]);
         
-        originalStartShape = JSON.parse(JSON.stringify(currentShape));
-        targetShape = JSON.parse(JSON.stringify(currentShape));
+        transformData.currentShape = template.map(p => [p[0] + offX, p[1] + offY]);
+        transformData.startShape = JSON.parse(JSON.stringify(transformData.currentShape));
+        transformData.targetShape = JSON.parse(JSON.stringify(transformData.currentShape));
 
         let stepCount = Math.floor(Math.random() * 3) + 3; // 3 to 5 steps
+        let tempMoves = [];
         let tempSkills = [];
 
         for (let i = 0; i < stepCount; i++) {
             let picked = typePool[Math.floor(Math.random() * typePool.length)];
-            let move = generateMove(picked.type);
-            applyMoveToPoints(targetShape, move);
-            generatedMoves.push(move);
+            let move = generateTransformMove(picked.type);
+            
+            applyTransform(transformData.targetShape, move);
+            tempMoves.push(move);
             if (!tempSkills.includes(picked.key)) tempSkills.push(picked.key);
         }
-        activeSkills = tempSkills;
 
-        let isOnGrid = targetShape.every(p => Math.abs(p[0]) <= 10 && Math.abs(p[1]) <= 10);
-        let isVisible = targetShape.every(p => Math.abs(p[0]) > 0.05 || Math.abs(p[1]) > 0.05);
-        let moved = JSON.stringify(targetShape) !== JSON.stringify(originalStartShape);
+        // Validation: Must be on grid, visible, and actually moved
+        let isOnGrid = transformData.targetShape.every(p => Math.abs(p[0]) <= 10 && Math.abs(p[1]) <= 10);
+        let isVisible = transformData.targetShape.some(p => Math.abs(p[0]) > 0.1 || Math.abs(p[1]) > 0.1); // Avoid collapsing to 0,0 completely
+        let moved = JSON.stringify(transformData.targetShape) !== JSON.stringify(transformData.startShape);
 
-        if (moved && isOnGrid && isVisible) validChallenge = true;
-        else { generatedMoves = []; activeSkills = []; }
+        if (moved && isOnGrid && isVisible) {
+            valid = true;
+            transformData.optimalMoves = tempMoves;
+            transformData.activeSkills = tempSkills;
+        }
     }
-    renderUI();
+
+    renderTransformUI();
 }
 
-function generateMove(type) {
-   if (type === 'translation') {
-    let range = Math.random() > 0.5 ? 5 : 3; // Randomly choose between a large or small movement
-    return { type, dx: Math.floor(Math.random() * (range * 2 + 1)) - range, dy: Math.floor(Math.random() * (range * 2 + 1)) - range };
+function generateTransformMove(type) {
+    if (type === 'translation') {
+        let range = Math.random() > 0.5 ? 5 : 3;
+        // Ensure strictly integer moves for generation
+        return { 
+            type, 
+            dx: Math.floor(Math.random() * (range * 2 + 1)) - range, 
+            dy: Math.floor(Math.random() * (range * 2 + 1)) - range 
+        };
     }
     if (type === 'rotate') return { type, deg: [90, 180][Math.floor(Math.random() * 2)], dir: ['CW', 'CCW'][Math.floor(Math.random() * 2)] };
     if (type === 'dilation') return { type, factor: [0.5, 2][Math.floor(Math.random() * 2)] };
-    return { type }; 
+    return { type }; // Reflections need no params
 }
 
-function applyMoveToPoints(pts, m) {
+function applyTransform(pts, m) {
     pts.forEach(p => {
         let x = p[0], y = p[1];
-        if (m.type === 'translation') { p[0] += m.dx; p[1] += m.dy; }
+        if (m.type === 'translation') { 
+            p[0] += m.dx; 
+            p[1] += m.dy; 
+        }
         else if (m.type === 'reflectX') { p[1] = -y; }
         else if (m.type === 'reflectY') { p[0] = -x; }
         else if (m.type === 'rotate') {
@@ -142,386 +165,455 @@ function applyMoveToPoints(pts, m) {
             else if ((m.deg === 90 && m.dir === 'CW')) { p[0] = y; p[1] = -x; }
             else if ((m.deg === 90 && m.dir === 'CCW')) { p[0] = -y; p[1] = x; }
         }
-        else if (m.type === 'dilation') { p[0] *= m.factor; p[1] *= m.factor; }
+        else if (m.type === 'dilation') { 
+            p[0] *= m.factor; 
+            p[1] *= m.factor; 
+        }
     });
 }
 
-function renderUI() {
+function renderTransformUI() {
     const qContent = document.getElementById('q-content');
     if (!qContent) return;
-    document.getElementById('q-title').innerText = `Transformations (Round ${currentRound}/3)`;
-    
-    qContent.innerHTML = `
-        <div style="display: flex; gap: 15px; align-items: flex-start; margin-bottom: 10px; position:relative;">
-            <div style="position:relative; width:440px; height:440px;">
-                <canvas id="gridCanvas" width="440" height="440" style="background: white; border-radius: 8px; border: 1px solid #94a3b8; cursor: crosshair;"></canvas>
-                <div id="coord-tip" style="position:absolute; bottom:10px; right:10px; background:rgba(15, 23, 42, 0.8); color:white; padding:4px 10px; border-radius:4px; font-family:monospace; font-size:11px; pointer-events:none;">(0, 0)</div>
-                <div id="flash-overlay" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); background:rgba(0,0,0,0.8); color:white; padding:20px 40px; border-radius:12px; font-size:24px; font-weight:bold; display:none; pointer-events:none; text-align:center; z-index:10;"></div>
-            </div>
-            
-            <div id="vertex-list" style="flex: 1; background: #f8fafc; padding: 12px; border-radius: 8px; font-size: 11px; font-family: monospace; border: 1px solid #cbd5e1; max-height: 440px; overflow-y: auto;">
-                <h4 style="margin: 0 0 8px 0; color: #334155; text-transform:uppercase; letter-spacing:0.5px;">Coordinates</h4>
-                <div style="color: #15803d; font-weight: bold; margin-bottom: 4px;">Current (Green)</div>
-                <div id="current-coords" style="margin-bottom: 12px; line-height:1.4;"></div>
-                <div style="color: #64748b; font-weight: bold; margin-bottom: 4px;">Target (Ghost)</div>
-                <div id="target-coords" style="line-height:1.4;"></div>
-            </div>
-        </div>
-        
-        <div id="user-sequence" style="min-height:45px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:8px; margin-bottom:12px; display:flex; flex-wrap:wrap; gap:6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            ${moveSequence.map((m, i) => `
-                <div style="display:flex; align-items:center; background:${editingIndex === i ? '#f59e0b' : '#334155'}; color:white; border-radius:4px; font-size:11px; transition: background 0.2s;">
-                    <div onclick="${isAnimating ? '' : `editStep(${i})`}" style="padding:5px 10px; cursor:pointer; font-weight:bold;">${i+1}. ${formatMove(m)}</div>
-                    <div onclick="${isAnimating ? '' : `undoTo(${i})`}" style="padding:5px 8px; background:rgba(0,0,0,0.2); cursor:pointer; border-left:1px solid rgba(255,255,255,0.1);">&times;</div>
-                </div>`).join('')}
-            ${moveSequence.length === 0 ? '<span style="color:#94a3b8; font-size:12px; padding:5px;">Add moves below...</span>' : ''}
-        </div>
 
-        <div id="control-panel" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:15px; border-radius:10px; display:grid; grid-template-columns: 1fr 1fr; gap:12px; pointer-events: ${isAnimating ? 'none' : 'auto'}; opacity: ${isAnimating ? 0.7 : 1};">
-            <select id="move-selector" onchange="updateSubInputs()" style="grid-column: span 2; height:40px; border-radius:6px; border:1px solid #cbd5e1; padding:0 10px; font-size:14px;">
-                <option value="translation">Translation</option>
-                <option value="reflectX">Reflection (X-Axis)</option>
-                <option value="reflectY">Reflection (Y-Axis)</option>
-                <option value="rotate">Rotation (Origin)</option>
-                <option value="dilation">Dilation (Origin)</option>
-            </select>
-            
-            <div id="sub-inputs" style="grid-column: span 2; display:flex; gap:15px; align-items:center; justify-content:center; padding:5px; height:40px;"></div>
-            
-            <button onclick="executeAction()" style="grid-column: span 2; height:45px; background:${editingIndex === -1 ? '#22c55e' : '#f59e0b'}; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:14px; box-shadow: 0 2px 0 rgba(0,0,0,0.1);">
-                ${editingIndex === -1 ? 'ADD MOVE' : 'UPDATE MOVE'}
-            </button>
-            
-            <button onclick="checkWin()" style="grid-column: span 1; height:40px; background:#0f172a; color:white; border-radius:6px; font-size:12px; cursor:pointer; font-weight:bold;">CHECK MATCH</button>
-            <button onclick="resetToStart()" style="grid-column: span 1; height:40px; background:#334155; color:white; border:none; border-radius:6px; font-size:12px; cursor:pointer; font-weight:bold;">RESET ALL</button>
-            
-            ${editingIndex !== -1 ? `<button onclick="cancelEdit()" style="grid-column: span 2; height:30px; background:#94a3b8; color:white; border:none; border-radius:6px; font-size:11px; cursor:pointer;">CANCEL EDIT</button>` : ''}
+    const d = transformData;
+    document.getElementById('q-title').innerText = `Transformations (Round ${d.round}/${d.maxRounds})`;
+
+    qContent.innerHTML = `
+        <div class="tf-layout">
+            <div class="tf-canvas-wrapper">
+                <canvas id="gridCanvas" width="440" height="440"></canvas>
+                <div id="coord-tip">(0, 0)</div>
+                
+                <div class="tf-coord-list">
+                   <div style="font-weight:bold; color:#15803d;">Current: <span id="cur-coords-text"></span></div>
+                   <div style="font-weight:bold; color:#94a3b8;">Target: <span id="tar-coords-text"></span></div>
+                </div>
+            </div>
+
+            <div class="tf-controls">
+                <div id="move-list" class="tf-move-list">
+                    ${d.userMoves.length === 0 ? '<div style="color:#cbd5e1; text-align:center; padding:10px;">Add moves to match the ghost shape.</div>' : ''}
+                    ${d.userMoves.map((m, i) => `
+                        <div class="tf-move-item ${d.editingIndex === i ? 'editing' : ''}">
+                            <div onclick="${d.isAnimating ? '' : `editTransformStep(${i})`}" style="flex:1; cursor:pointer;">
+                                <strong>${i+1}.</strong> ${formatTransformLabel(m)}
+                            </div>
+                            <div onclick="${d.isAnimating ? '' : `undoTransformTo(${i})`}" class="tf-delete-btn">&times;</div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="tf-input-panel">
+                    <select id="move-type" onchange="updateTransformInputs()" class="tf-select">
+                        <option value="translation">Translation</option>
+                        <option value="reflectX">Reflection (X-Axis)</option>
+                        <option value="reflectY">Reflection (Y-Axis)</option>
+                        <option value="rotate">Rotation (Origin)</option>
+                        <option value="dilation">Dilation (Origin)</option>
+                    </select>
+
+                    <div id="dynamic-inputs" class="tf-dynamic-inputs"></div>
+
+                    <div style="display:flex; gap:10px;">
+                        <button onclick="executeTransform()" class="tf-btn tf-btn-primary">
+                            ${d.editingIndex === -1 ? 'ADD MOVE' : 'UPDATE MOVE'}
+                        </button>
+                        ${d.editingIndex !== -1 ? `<button onclick="cancelTransformEdit()" class="tf-btn tf-btn-cancel">CANCEL</button>` : ''}
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                     <button onclick="checkTransformWin()" class="tf-btn tf-btn-dark">CHECK ANSWER</button>
+                     <button onclick="resetTransformBoard()" class="tf-btn tf-btn-subtle">RESET</button>
+                </div>
+            </div>
         </div>
+        <div id="tf-feedback"></div>
     `;
 
-    setupCanvas();
-    updateSubInputs(); 
-    updateCoordinateList();
-    draw(currentShape); 
+    setupTransformCanvas();
+    updateTransformInputs();
+    updateCoordsText();
+    drawTransformCanvas(d.currentShape);
 }
 
-function showFlash(msg, type) {
-    const overlay = document.getElementById('flash-overlay');
-    if (!overlay) return;
-    overlay.innerText = msg;
-    overlay.style.display = 'block';
-    overlay.style.backgroundColor = type === 'success' ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)';
-    overlay.animate([{ opacity: 0, transform: 'translate(-50%, -40%)' }, { opacity: 1, transform: 'translate(-50%, -50%)' }], { duration: 200, fill: 'forwards' });
-    setTimeout(() => { overlay.style.display = 'none'; }, 1500);
-}
-
-function updateCoordinateList() {
-    const curDiv = document.getElementById('current-coords');
-    const tarDiv = document.getElementById('target-coords');
-    if (!curDiv || !tarDiv) return;
-    curDiv.innerHTML = currentShape.map((p, i) => `(${p[0].toFixed(2)}, ${p[1].toFixed(2)})`).join('<br>');
-    tarDiv.innerHTML = targetShape.map((p, i) => `(${p[0].toFixed(2)}, ${p[1].toFixed(2)})`).join('<br>');
-}
-
-function formatMove(m) {
-    if (m.type === 'translation') return `T(${m.dx}, ${m.dy})`;
-    if (m.type === 'reflectX') return `Ref X-Axis`;
-    if (m.type === 'reflectY') return `Ref Y-Axis`;
-    if (m.type === 'rotate') return `Rot ${m.deg}° ${m.dir}`;
-    if (m.type === 'dilation') return `Dilate x${m.factor}`;
-    return m.type;
-}
-
-function setupCanvas() {
+function setupTransformCanvas() {
     const canvas = document.getElementById('gridCanvas');
     const tip = document.getElementById('coord-tip');
     if (!canvas) return;
+
     canvas.onmousemove = (e) => {
         const rect = canvas.getBoundingClientRect();
+        // Canvas is 440px, Center is 220, Grid size 20
         const gridX = Math.round((e.clientX - rect.left - 220) / 20);
         const gridY = Math.round((220 - (e.clientY - rect.top)) / 20);
         if (Math.abs(gridX) <= 10 && Math.abs(gridY) <= 10) tip.innerText = `(${gridX}, ${gridY})`;
     };
 }
 
-// Logic: Check if ANY coordinate is non-integer.
-window.updateSubInputs = function() {
-    const val = document.getElementById('move-selector').value;
-    const container = document.getElementById('sub-inputs');
-    let existing = (editingIndex !== -1) ? moveSequence[editingIndex] : null;
-
-    // Check if ANY coordinate in currentShape is non-integer
-    const hasDecimals = currentShape.some(p => !Number.isInteger(p[0]) || !Number.isInteger(p[1]));
-    // IF decimals exist, enable 0.25 stepping. OTHERWISE, force integers.
-    const stepVal = hasDecimals ? "0.25" : "1";
-
-    if (val === 'translation') {
-        container.innerHTML = `
-            <div style="display:flex; align-items:center; margin-right: 10px;">
-                <span style="font-weight:bold; margin-right:5px;">X:</span> 
-                <input type="number" id="dx" step="${stepVal}" value="${existing?.dx || 0}" style="width:80px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px; font-size:14px;">
-            </div>
-            <div style="display:flex; align-items:center;">
-                <span style="font-weight:bold; margin-right:5px;">Y:</span> 
-                <input type="number" id="dy" step="${stepVal}" value="${existing?.dy || 0}" style="width:80px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px; font-size:14px;">
-            </div>`;
-    } else if (val === 'rotate') {
-        container.innerHTML = `
-            <select id="rot-deg" style="height:35px; border-radius:4px;">
-                <option value="90" ${existing?.deg == 90 ? 'selected' : ''}>90°</option>
-                <option value="180" ${existing?.deg == 180 ? 'selected' : ''}>180°</option>
-            </select>
-            <select id="rot-dir" style="height:35px; border-radius:4px;">
-                <option value="CW" ${existing?.dir == 'CW' ? 'selected' : ''}>CW</option>
-                <option value="CCW" ${existing?.dir == 'CCW' ? 'selected' : ''}>CCW</option>
-            </select>`;
-    } else if (val === 'dilation') {
-        container.innerHTML = `
-            <span style="font-weight:bold; margin-right:5px;">Scale:</span> 
-            <input type="number" id="dil-factor" step="0.25" value="${existing?.factor || 1}" style="width:80px; height:35px; text-align:center; border:1px solid #cbd5e1; border-radius:4px;">`;
-    } else {
-        container.innerHTML = `<span style="color:#64748b; font-size:12px; font-style:italic;">No parameters needed</span>`;
-    }
-};
-
-window.editStep = function(i) {
-    editingIndex = i;
-    const move = moveSequence[i];
-    renderUI(); 
-    document.getElementById('move-selector').value = move.type;
-    updateSubInputs(); 
-};
-
-window.cancelEdit = function() {
-    editingIndex = -1;
-    renderUI();
-};
-
-window.executeAction = async function() {
-    const type = document.getElementById('move-selector').value;
-    let m = { type };
+function updateCoordsText() {
+    const cur = transformData.currentShape.map(p => `(${p[0].toFixed(2)},${p[1].toFixed(2)})`).join(' ');
+    const tar = transformData.targetShape.map(p => `(${p[0].toFixed(2)},${p[1].toFixed(2)})`).join(' ');
     
+    const cEl = document.getElementById('cur-coords-text');
+    const tEl = document.getElementById('tar-coords-text');
+    if(cEl) cEl.innerText = cur;
+    if(tEl) tEl.innerText = tar;
+}
+
+window.updateTransformInputs = function() {
+    const type = document.getElementById('move-type').value;
+    const container = document.getElementById('dynamic-inputs');
+    const existing = (transformData.editingIndex !== -1) ? transformData.userMoves[transformData.editingIndex] : null;
+
+    // Logic: If decimals exist in current shape, allow 0.25 steps. Otherwise integer steps.
+    const hasDecimals = transformData.currentShape.some(p => !Number.isInteger(p[0]) || !Number.isInteger(p[1]));
+    const step = hasDecimals ? "0.25" : "1";
+
+    let html = '';
     if (type === 'translation') {
-        m.dx = parseFloat(document.getElementById('dx').value) || 0;
-        m.dy = parseFloat(document.getElementById('dy').value) || 0;
+        html = `
+            <div class="tf-field-group">
+                <label>x:</label>
+                <input type="number" id="inp-dx" step="${step}" value="${existing?.dx || 0}">
+                <label>y:</label>
+                <input type="number" id="inp-dy" step="${step}" value="${existing?.dy || 0}">
+            </div>`;
     } else if (type === 'rotate') {
-        m.deg = parseInt(document.getElementById('rot-deg').value);
-        m.dir = document.getElementById('rot-dir').value;
+        html = `
+            <div class="tf-field-group">
+                <select id="inp-deg">
+                    <option value="90" ${existing?.deg == 90 ? 'selected' : ''}>90°</option>
+                    <option value="180" ${existing?.deg == 180 ? 'selected' : ''}>180°</option>
+                </select>
+                <select id="inp-dir">
+                    <option value="CW" ${existing?.dir == 'CW' ? 'selected' : ''}>CW</option>
+                    <option value="CCW" ${existing?.dir == 'CCW' ? 'selected' : ''}>CCW</option>
+                </select>
+            </div>`;
     } else if (type === 'dilation') {
-        m.factor = parseFloat(document.getElementById('dil-factor').value) || 1;
+        html = `
+            <div class="tf-field-group">
+                <label>Factor:</label>
+                <input type="number" id="inp-fac" step="0.25" value="${existing?.factor || 1}">
+            </div>`;
     }
-
-    if (editingIndex === -1) {
-        moveSequence.push(m);
-        await animateMove(currentShape, m);
-    } else {
-        moveSequence[editingIndex] = m;
-        editingIndex = -1;
-        await replayAll();
-    }
-    updateCoordinateList();
-    renderUI();
+    container.innerHTML = html;
 };
 
-async function animateMove(pts, m) {
-    isAnimating = true;
-    let startPoints = JSON.parse(JSON.stringify(pts));
+window.executeTransform = async function() {
+    const type = document.getElementById('move-type').value;
+    let m = { type };
+
+    if (type === 'translation') {
+        m.dx = parseFloat(document.getElementById('inp-dx').value) || 0;
+        m.dy = parseFloat(document.getElementById('inp-dy').value) || 0;
+        if (m.dx === 0 && m.dy === 0) return;
+    } else if (type === 'rotate') {
+        m.deg = parseInt(document.getElementById('inp-deg').value);
+        m.dir = document.getElementById('inp-dir').value;
+    } else if (type === 'dilation') {
+        m.factor = parseFloat(document.getElementById('inp-fac').value) || 1;
+    }
+
+    if (transformData.editingIndex === -1) {
+        transformData.userMoves.push(m);
+        await animateTransform(transformData.currentShape, m);
+    } else {
+        transformData.userMoves[transformData.editingIndex] = m;
+        transformData.editingIndex = -1;
+        await replayTransformHistory();
+    }
     
-    // Split X and Y movement for translations if both exist
+    updateCoordsText();
+    renderTransformUI();
+};
+
+window.editTransformStep = function(i) {
+    transformData.editingIndex = i;
+    renderTransformUI();
+    document.getElementById('move-type').value = transformData.userMoves[i].type;
+    updateTransformInputs();
+};
+
+window.cancelTransformEdit = function() {
+    transformData.editingIndex = -1;
+    renderTransformUI();
+};
+
+window.undoTransformTo = function(i) {
+    transformData.userMoves.splice(i);
+    replayTransformHistory().then(() => renderTransformUI());
+};
+
+window.resetTransformBoard = function() {
+    transformData.userMoves = [];
+    transformData.currentShape = JSON.parse(JSON.stringify(transformData.startShape));
+    renderTransformUI();
+};
+
+async function animateTransform(pts, m) {
+    transformData.isAnimating = true;
+    let start = JSON.parse(JSON.stringify(pts));
+    
+    // For translation, break diagonal movement into X then Y for visual clarity
     if (m.type === 'translation' && m.dx !== 0 && m.dy !== 0) {
-        let midPoints = startPoints.map(p => [p[0] + m.dx, p[1]]);
-        await runLerp(startPoints, midPoints);
-        await new Promise(r => setTimeout(r, 100));
-        let endPoints = midPoints.map(p => [p[0], p[1] + m.dy]);
-        await runLerp(midPoints, endPoints);
-        applyMoveToPoints(pts, m);
+        let mid = start.map(p => [p[0] + m.dx, p[1]]);
+        await runLerp(start, mid);
+        await new Promise(r => setTimeout(r, 50));
+        let end = mid.map(p => [p[0], p[1] + m.dy]);
+        await runLerp(mid, end);
+        applyTransform(pts, m);
     } else {
-        applyMoveToPoints(pts, m);
-        let endPoints = JSON.parse(JSON.stringify(pts));
-        await runLerp(startPoints, endPoints);
+        applyTransform(pts, m);
+        let end = JSON.parse(JSON.stringify(pts));
+        await runLerp(start, end);
     }
-    isAnimating = false;
+    transformData.isAnimating = false;
 }
 
-async function runLerp(fromPts, toPts) {
-    const frames = 15;
-    for (let f = 1; f <= frames; f++) {
-        let t = f / frames;
-        let interp = fromPts.map((p, i) => [
-            p[0] + (toPts[i][0] - p[0]) * t,
-            p[1] + (toPts[i][1] - p[1]) * t
-        ]);
-        draw(interp);
-        await new Promise(r => setTimeout(r, 20)); 
+async function replayTransformHistory() {
+    transformData.currentShape = JSON.parse(JSON.stringify(transformData.startShape));
+    drawTransformCanvas(transformData.currentShape);
+    for (let m of transformData.userMoves) {
+        await animateTransform(transformData.currentShape, m);
+        await new Promise(r => setTimeout(r, 50));
     }
 }
 
-async function replayAll() {
-    currentShape = JSON.parse(JSON.stringify(originalStartShape));
-    draw(currentShape);
-    for (let m of moveSequence) {
-        await animateMove(currentShape, m);
-        await new Promise(r => setTimeout(r, 100));
-    }
+function runLerp(from, to) {
+    return new Promise(resolve => {
+        let frame = 0;
+        const totalFrames = 15;
+        
+        function loop() {
+            frame++;
+            let t = frame / totalFrames;
+            // Ease out
+            t = 1 - Math.pow(1 - t, 3);
+            
+            let current = from.map((p, i) => [
+                p[0] + (to[i][0] - p[0]) * t,
+                p[1] + (to[i][1] - p[1]) * t
+            ]);
+            
+            drawTransformCanvas(current);
+            
+            if (frame < totalFrames) requestAnimationFrame(loop);
+            else resolve();
+        }
+        loop();
+    });
 }
 
-window.undoTo = function(i) {
-    moveSequence.splice(i);
-    replayAll().then(() => renderUI());
-};
-
-window.resetToStart = function() {
-    moveSequence = [];
-    currentShape = JSON.parse(JSON.stringify(originalStartShape));
-    renderUI();
-};
-
-function draw(pts) {
+function drawTransformCanvas(currentPts) {
     const canvas = document.getElementById('gridCanvas');
     if (!canvas) return;
-    const ctx = canvas.getContext('2d'), step = 20, center = 220;
+    const ctx = canvas.getContext('2d');
+    const scale = 20; 
+    const center = 220;
+
     ctx.clearRect(0,0,440,440);
 
-    ctx.strokeStyle="#f1f5f9"; ctx.beginPath();
-    for(let i=0; i<=440; i+=step){ ctx.moveTo(i,0); ctx.lineTo(i,440); ctx.moveTo(0,i); ctx.lineTo(440,i); } ctx.stroke();
-    
-    ctx.strokeStyle="#64748b"; ctx.lineWidth=2; ctx.beginPath();
-    ctx.moveTo(center,0); ctx.lineTo(center,440); ctx.moveTo(0,center); ctx.lineTo(440,center); ctx.stroke();
+    // Draw Grid
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for(let i=0; i<=440; i+=scale) {
+        ctx.moveTo(i,0); ctx.lineTo(i,440);
+        ctx.moveTo(0,i); ctx.lineTo(440,i);
+    }
+    ctx.stroke();
 
-    ctx.fillStyle = "#94a3b8"; ctx.font = "9px Arial"; ctx.textAlign = "center";
+    // Axes
+    ctx.strokeStyle = "#64748b";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(center,0); ctx.lineTo(center,440);
+    ctx.moveTo(0,center); ctx.lineTo(440,center);
+    ctx.stroke();
+
+    // Numbers
+    ctx.fillStyle = "#94a3b8"; ctx.font = "10px monospace"; ctx.textAlign = "center";
     for(let i = -10; i <= 10; i++) {
         if(i === 0) continue;
-        ctx.fillText(i, center + (i * step), center + 12);
-        ctx.fillText(i, center - 10, center - (i * step) + 3);
+        ctx.fillText(i, center + (i * scale), center + 12);
     }
 
-    ctx.setLineDash([4,2]); ctx.strokeStyle="rgba(0,0,0,0.2)"; ctx.fillStyle="rgba(0,0,0,0.03)";
-    drawShape(ctx, targetShape, center, step, false);
+    // Shapes Function
+    const drawPoly = (pts, fill, stroke, isGhost) => {
+        ctx.beginPath();
+        pts.forEach((p, i) => {
+            let x = center + (p[0] * scale);
+            let y = center - (p[1] * scale);
+            if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        });
+        ctx.closePath();
+        
+        ctx.save();
+        if(isGhost) ctx.setLineDash([5, 5]);
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Vertices
+        ctx.fillStyle = stroke;
+        pts.forEach(p => {
+             ctx.beginPath();
+             ctx.arc(center+(p[0]*scale), center-(p[1]*scale), 3, 0, Math.PI*2);
+             ctx.fill();
+        });
+        ctx.restore();
+    };
 
-    ctx.setLineDash([]); ctx.strokeStyle="#15803d"; ctx.fillStyle="rgba(34, 197, 94, 0.6)"; 
-    drawShape(ctx, pts, center, step, true);
+    drawPoly(transformData.targetShape, "rgba(203, 213, 225, 0.3)", "#94a3b8", true);
+    drawPoly(currentPts, "rgba(34, 197, 94, 0.4)", "#16a34a", false);
 }
 
-function drawShape(ctx, pts, center, step, fill) {
-    ctx.beginPath();
-    pts.forEach((p, i) => {
-        let x = center + (p[0] * step), y = center - (p[1] * step);
-        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    });
-    ctx.closePath(); 
-    if(fill) ctx.fill(); 
-    ctx.stroke();
+// --- STRICT SCORING & SUPABASE ---
+window.checkTransformWin = async function() {
+    const d = transformData;
+    const feedback = document.getElementById('tf-feedback');
     
-    ctx.fillStyle = fill ? "#166534" : "#94a3b8";
-    pts.forEach(p => {
-         let x = center + (p[0] * step), y = center - (p[1] * step);
-         ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
-    });
-}
-
-// STRICT SCORING CHECK
-window.checkWin = async function() {
+    // Sort points to ignore order
     const sorter = (a, b) => (a[0] - b[0]) || (a[1] - b[1]);
-    let sortedCurrent = [...currentShape].sort(sorter);
-    let sortedTarget = [...targetShape].sort(sorter);
+    const sortedCur = [...d.currentShape].sort(sorter);
+    const sortedTar = [...d.targetShape].sort(sorter);
 
-    const isCorrect = sortedCurrent.every((p, i) => 
-        Math.abs(p[0] - sortedTarget[i][0]) < 0.1 && 
-        Math.abs(p[1] - sortedTarget[i][1]) < 0.1
+    const isMatch = sortedCur.every((p, i) => 
+        Math.abs(p[0] - sortedTar[i][0]) < 0.1 && 
+        Math.abs(p[1] - sortedTar[i][1]) < 0.1
     );
 
-    if (isCorrect) {
-        // --- Calculate "Efficient" Moves ---
-        let adjustedUserMoves = 0;
+    if (isMatch) {
+        // 1. Calculate Efficient Moves (Handle Split Translations)
+        let adjustedMoves = 0;
         let i = 0;
-        while (i < moveSequence.length) {
-            let m1 = moveSequence[i];
+        const moves = d.userMoves;
+        
+        while (i < moves.length) {
+            let m1 = moves[i];
             
-            // Check for potential split (T(x,0) + T(0,y) or vice versa)
-            if (i < moveSequence.length - 1) {
-                let m2 = moveSequence[i+1];
+            // Look ahead for split translation
+            if (i < moves.length - 1) {
+                let m2 = moves[i+1];
                 if (m1.type === 'translation' && m2.type === 'translation') {
-                    // Allowed split: Horizontal THEN Vertical (or vice versa)
-                    // Must be strictly orthogonal (one 0 component each)
-                    if ((Math.abs(m1.dx) > 0 && m1.dy === 0 && m2.dx === 0 && Math.abs(m2.dy) > 0) ||
-                        (m1.dx === 0 && Math.abs(m1.dy) > 0 && Math.abs(m2.dx) > 0 && m2.dy === 0)) {
-                        
-                        // Combine these two into one "logical" move
-                        adjustedUserMoves++;
-                        i += 2; // skip both
+                    // Check orthogonal split: T(x,0) then T(0,y) OR T(0,y) then T(x,0)
+                    const m1IsX = (m1.dx !== 0 && m1.dy === 0);
+                    const m1IsY = (m1.dx === 0 && m1.dy !== 0);
+                    const m2IsX = (m2.dx !== 0 && m2.dy === 0);
+                    const m2IsY = (m2.dx === 0 && m2.dy !== 0);
+
+                    if ((m1IsX && m2IsY) || (m1IsY && m2IsX)) {
+                        // This counts as 1 logical move
+                        adjustedMoves++;
+                        i += 2; 
                         continue;
                     }
                 }
             }
-            
-            // If not a valid split, count as 1 move
-            adjustedUserMoves++;
+            adjustedMoves++;
             i++;
         }
 
-        const optimalMoves = generatedMoves.length;
-        const mistakes = Math.max(0, adjustedUserMoves - optimalMoves);
-        const efficiency = optimalMoves / adjustedUserMoves;
+        const optimal = d.optimalMoves.length;
+        const mistakes = Math.max(0, adjustedMoves - optimal);
+        const efficiency = optimal / adjustedMoves;
 
-        // 2. Prepare Updates
-        let updates = {};
+        feedback.innerHTML = `<div style="background:#dcfce7; color:#166534; padding:10px; border-radius:8px;">Correct! ${mistakes > 0 ? `(${mistakes} extra steps)` : 'Perfect efficiency!'}</div>`;
 
-        // Calculate Skill Deltas (0 mistakes = +1, 1 mistake = 0, >1 = -1)
-        let skillDelta = (mistakes === 0) ? 1 : (mistakes === 1 ? 0 : -1);
-        
-        // Update Local State & Prepare DB Object for Skills
-        activeSkills.forEach(key => {
-            let oldVal = window.userProgress[key] || 0;
-            let newVal = Math.max(0, Math.min(10, oldVal + skillDelta));
-            window.userProgress[key] = newVal;
-            updates[key] = newVal;
-        });
+        // 2. Update Database
+        await updateTransformScores(mistakes, efficiency);
 
-        // Calculate Aggregate (C6Transformation)
-        let aggDelta = 0;
-        if (efficiency >= 0.75) aggDelta = 1;
-        else if (efficiency < 0.50) aggDelta = -1;
-
-        let oldAgg = window.userProgress.C6Transformation || 0;
-        let newAgg = Math.max(0, Math.min(10, oldAgg + aggDelta));
-        window.userProgress.C6Transformation = newAgg;
-        updates.C6Transformation = newAgg;
-
-        // 3. Send to Supabase IMMEDIATELY
-        if (window.supabaseClient && window.currentUser) {
-            await window.supabaseClient
-                .from('assignment')
-                .update(updates)
-                .eq('userName', window.currentUser);
-        }
-
-        showFlash("Correct!", "success");
-        currentRound++;
-        
+        d.round++;
         setTimeout(() => {
-            if (currentRound > 3) finishGame();
-            else startNewRound();
+            if (d.round > d.maxRounds) finishTransformGame();
+            else startTransformRound();
         }, 1500);
 
     } else {
-        showFlash("Incorrect", "error");
+        feedback.innerHTML = `<div style="background:#fee2e2; color:#991b1b; padding:10px; border-radius:8px;">Not matching yet. Check coordinates.</div>`;
+        setTimeout(() => feedback.innerHTML = '', 2000);
     }
 };
 
-async function finishGame() {
-    window.isCurrentQActive = false; 
-    const qContent = document.getElementById('q-content');
-    
-    // UI Only - Scoring happened in checkWin
-    qContent.innerHTML = `
-        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:400px; animation: fadeIn 0.5s;">
-            <div style="font-size:60px;">🏆</div>
-            <h2 style="color:#1e293b; margin:10px 0;">Great Job!</h2>
-            <p style="color:#64748b; font-size:16px;">Skills updated.</p>
-        </div>
-    `;
+async function updateTransformScores(mistakes, efficiency) {
+    const delta = (mistakes === 0) ? 1 : (mistakes === 1 ? 0 : -1);
+    const updates = {};
 
-    setTimeout(() => { 
-        if (typeof window.loadNextQuestion === 'function') window.loadNextQuestion(); 
-    }, 2500);
+    // Update specific skills used
+    transformData.activeSkills.forEach(k => {
+        let val = Math.max(0, Math.min(10, (transformData.mastery[k] || 0) + delta));
+        transformData.mastery[k] = val;
+        window.userMastery[k] = val; // Global Sync
+        updates[k] = val;
+    });
+
+    // Update Aggregate
+    let aggDelta = (efficiency >= 0.8) ? 1 : (efficiency < 0.5 ? -1 : 0);
+    let aggVal = Math.max(0, Math.min(10, (transformData.mastery.C6Transformation || 0) + aggDelta));
+    transformData.mastery.C6Transformation = aggVal;
+    window.userMastery.C6Transformation = aggVal;
+    updates.C6Transformation = aggVal;
+
+    // Send to DB
+    if (window.supabaseClient && window.currentUser) {
+        try {
+            const h = sessionStorage.getItem('target_hour') || "00";
+            await window.supabaseClient.from('assignment')
+                .update(updates)
+                .eq('userName', window.currentUser)
+                .eq('hour', h);
+        } catch(e) { console.error("DB Update Failed", e); }
+    }
 }
+
+function finishTransformGame() {
+    document.getElementById('q-content').innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:400px; animation:fadeIn 0.5s;">
+            <div style="font-size:60px;">🏆</div>
+            <h2 style="color:#1e293b;">Transformation Master!</h2>
+            <p style="color:#64748b;">Progress saved.</p>
+        </div>`;
+    setTimeout(() => { if(window.loadNextQuestion) window.loadNextQuestion(); }, 2000);
+}
+
+function formatTransformLabel(m) {
+    if (m.type === 'translation') return `Translate (${m.dx}, ${m.dy})`;
+    if (m.type === 'reflectX') return `Reflect X-Axis`;
+    if (m.type === 'reflectY') return `Reflect Y-Axis`;
+    if (m.type === 'rotate') return `Rotate ${m.deg}° ${m.dir}`;
+    if (m.type === 'dilation') return `Dilate k=${m.factor}`;
+    return m.type;
+}
+
+// CSS Injection
+const tfStyle = document.createElement('style');
+tfStyle.innerHTML = `
+    .tf-layout { display:flex; gap:20px; flex-wrap:wrap; justify-content:center; }
+    .tf-canvas-wrapper { position:relative; width:440px; height:440px; background:white; border:1px solid #94a3b8; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.05); }
+    .tf-coord-list { margin-top:10px; font-family:monospace; font-size:12px; display:flex; justify-content:space-between; }
+    #coord-tip { position:absolute; bottom:5px; right:5px; background:rgba(15,23,42,0.8); color:white; padding:2px 6px; border-radius:4px; font-size:10px; pointer-events:none; }
+    .tf-controls { flex:1; min-width:300px; display:flex; flex-direction:column; gap:10px; }
+    .tf-move-list { flex:1; background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:10px; max-height:200px; overflow-y:auto; }
+    .tf-move-item { display:flex; justify-content:space-between; align-items:center; background:white; border:1px solid #e2e8f0; padding:6px 10px; margin-bottom:5px; border-radius:4px; font-size:13px; transition:0.2s; }
+    .tf-move-item.editing { border-color:#f59e0b; background:#fffbeb; }
+    .tf-move-item:hover { border-color:#94a3b8; }
+    .tf-delete-btn { color:#ef4444; cursor:pointer; font-weight:bold; padding:0 5px; }
+    .tf-input-panel { background:#f1f5f9; padding:15px; border-radius:8px; border:1px solid #cbd5e1; }
+    .tf-select { width:100%; padding:8px; border-radius:4px; border:1px solid #cbd5e1; margin-bottom:10px; }
+    .tf-dynamic-inputs { display:flex; gap:10px; margin-bottom:10px; align-items:center; min-height:30px; }
+    .tf-field-group { display:flex; align-items:center; gap:5px; }
+    .tf-field-group input, .tf-field-group select { width:70px; padding:5px; text-align:center; border:1px solid #cbd5e1; border-radius:4px; }
+    .tf-btn { padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer; border:none; transition:0.2s; flex:1; }
+    .tf-btn-primary { background:#22c55e; color:white; }
+    .tf-btn-primary:hover { background:#16a34a; }
+    .tf-btn-cancel { background:#94a3b8; color:white; flex:0; }
+    .tf-btn-dark { background:#0f172a; color:white; }
+    .tf-btn-subtle { background:#e2e8f0; color:#334155; }
+    #tf-feedback { margin-top:10px; text-align:center; font-weight:bold; min-height:40px; }
+`;
+document.head.appendChild(tfStyle);
