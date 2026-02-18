@@ -48,50 +48,65 @@
     </div>
 
     <div class="field-group">
-        <label for="hour-select">Class Period</label>
-        <select id="hour-select">
-            <option value="0">Hour 0 (Test)</option>
-            <option value="1">1st Period</option>
-            <option value="2">2nd Period</option>
-            <option value="3">3rd Period</option>
-        </select>
-    </div>
+    <label>Class Period</label>
+    <select id="hour-select">
+        <option value="00">Guest</option>
+        <option value="01">01</option>
+        <option value="02">02</option>
+        <option value="03">03</option>
+        <option value="04">04</option>
+        <option value="05">05</option>
+        <option value="06">06</option>
+        <option value="07">07</option>
+    </select>
+</div>
 
-    <div class="field-group">
-        <label for="lesson-select">Assignment</label>
-        <select id="lesson-select">
-            <option value="C6Review">Chapter 6 Review</option>
-            <option value="6.2.4">6.2.4 Transformations</option>
-        </select>
-    </div>
+<div class="field-group">
+    <label>Assignment</label>
+    <select id="lesson-select">
+        <option value="C6Review">Chapter 6 Review</option>
+    </select>
+</div>
 
     <button onclick="handleLogin()">Start Practice</button>
 </div>
 
 <script>
-    function handleLogin() {
-        // 1. Grab values from the UI
-        const name = document.getElementById('username-input').value.trim();
-        const hour = document.getElementById('hour-select').value;
-        const lesson = document.getElementById('lesson-select').value;
+    async function handleLogin() {
+    const user = document.getElementById('username-input').value.trim();
+    const hour = document.getElementById('hour-select').value; // e.g., "01" or "00"
+    const lesson = document.getElementById('lesson-select').value; // "C6Review"
 
-        // 2. Validate
-        if (!name) {
-            alert("Please enter your name to continue.");
-            return;
-        }
-
-        // 3. Store in Session (This allows assignment.html to know who is playing)
-        sessionStorage.setItem('current_user', name);
-        sessionStorage.setItem('target_hour', hour);
-        sessionStorage.setItem('target_lesson', lesson);
-        
-        // Reset the timer for a fresh session
-        sessionStorage.setItem('total_work_time', 0);
-
-        // 4. Redirect to the main portal file
-        window.location.href = 'assignment.html';
+    if (!user) {
+        alert("Please enter a username.");
+        return;
     }
+
+    // 1. Check user/lesson status in Supabase
+    try {
+        const { data, error } = await supabaseClient
+            .from('assignment')
+            .select('*')
+            .eq('userName', user)
+            .eq('hour', hour)
+            .maybeSingle();
+
+        if (data && data[lesson] === true) {
+            alert(`Note: The assignment "${lesson}" is already marked as completed for this user.`);
+        }
+    } catch (err) {
+        console.error("Status check error:", err);
+    }
+
+    // 2. Store session data for the Hub
+    sessionStorage.setItem('current_user', user);
+    sessionStorage.setItem('target_hour', hour);
+    sessionStorage.setItem('target_lesson', lesson);
+    sessionStorage.setItem('total_work_time', 0);
+
+    // 3. Redirect to portal
+    window.location.href = 'assignment.html';
+}
 </script>
 
 </body>
