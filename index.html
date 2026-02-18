@@ -3,184 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Math Portal | Login</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>Login | Math Portal</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* Specific login-page overrides to center the box vertically */
-        body {
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: var(--soft-white);
-        }
-        .login-card {
-            text-align: center;
-            width: 100%;
-            max-width: 400px; /* Constrains the card so boxes aren't too wide */
-            padding: 40px;    /* Adds breathing room inside the card */
-            background: white; /* Optional: Defines the card background */
-            border-radius: 15px; /* Optional: Rounded corners for the card */
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05); /* Optional: Subtle shadow */
-        }
-        #msg {
-            margin-top: 15px;
-            font-size: 0.9rem;
-            min-height: 20px;
-        }
-        .input-group {
-            margin-bottom: 20px;
-            text-align: left;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: var(--black);
-        }
-        
-        /* UPDATED: Shared styles for both Inputs and Selects */
-        input[type="text"],
-        select {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid var(--gray-med);
-            border-radius: 10px;
-            background: white;
-            font-size: 1rem;
-            box-sizing: border-box; /* Ensures padding doesn't affect width */
-            height: 45px; /* Enforce same height for visual consistency */
-        }
+        body { background: #f1f5f9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: sans-serif; }
+        .login-card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        .login-card h2 { margin-top: 0; color: #1e293b; text-align: center; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 14px; margin-bottom: 5px; color: #64748b; font-weight: bold; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #6366f1; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:hover { background: #4f46e5; }
+        #status-msg { font-size: 12px; text-align: center; margin-top: 10px; min-height: 15px; }
     </style>
 </head>
 <body>
 
-    <div class="container login-card">
-        <h1>Math <span class="accent-text">Portal</span></h1>
-        <p style="color: var(--gray-text); margin-bottom: 30px;">Please log in to start your practice session.</p>
-
-        <div class="input-group">
-            <label for="username">Student Username</label>
-            <input type="text" id="username" placeholder="e.g. panda24">
-        </div>
-
-        <div class="input-group">
-            <label for="hour-select">Class Period</label>
-            <select id="hour-select">
-                <option value="01">Hour 01</option>
-                <option value="02">Hour 02</option>
-                <option value="03">Hour 03</option>
-                <option value="04">Hour 04</option>
-                <option value="05">Hour 05</option>
-                <option value="06">Hour 06</option>
-                <option value="07">Hour 07</option>
-                <option value="00">Guest</option>
-            </select>
-        </div>
-
-        <div class="input-group">
-            <label for="lesson-select">Target Lesson</label>
-            <select id="lesson-select">
-                <option value="C6Review">Chapter 6 Review</option>
-            </select>
-        </div>
-
-        <button id="login-btn" onclick="handleLogin()" style="width: 100%;">Enter Classroom</button>
-
-        <div id="msg"></div>
+<div class="login-card">
+    <h2>Student Login</h2>
+    
+    <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="username-input" placeholder="Enter your name..." oninput="checkStatus()">
     </div>
 
-    <script>
-        // --- Supabase Configuration ---
-        const SB_URL = "https://khazeoycsjdqnmwodncw.supabase.co";
-        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoYXplb3ljc2pkcW5td29kbmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MDMwOTMsImV4cCI6MjA3ODQ3OTA5M30.h-WabaGcQZ968sO2ImetccUaRihRFmO2mUKCdPiAbEI";
-        const supabase = supabase.createClient(SB_URL, SB_KEY);
+    <div class="form-group">
+        <label>Class Period (Hour)</label>
+        <select id="hour-select">
+            <option value="0">Hour 0 (Dev/Test)</option>
+            <option value="1">1st Period</option>
+            <option value="2">2nd Period</option>
+            <option value="3">3rd Period</option>
+        </select>
+    </div>
 
-        async function handleLogin() {
-            const userField = document.getElementById('username');
-            const lessonField = document.getElementById('lesson-select');
-            const hourField = document.getElementById('hour-select');
-            const msg = document.getElementById('msg');
-            const loginBtn = document.getElementById('login-btn');
-            
-            const username = userField.value.trim().toLowerCase();
-            const hourValue = hourField.value;
+    <div class="form-group">
+        <label>Target Lesson</label>
+        <select id="lesson-select" onchange="checkStatus()">
+            <option value="6.2.4">6.2.4 Transformations</option>
+            <option value="C6Review">Chapter 6 Review</option>
+        </select>
+    </div>
 
-            if (!username) {
-                msg.style.color = "#ef4444";
-                return msg.innerText = "Please enter your username.";
-            }
+    <button onclick="handleLogin()">Enter Assignment</button>
+    <div id="status-msg"></div>
+</div>
 
-            loginBtn.disabled = true;
-            msg.style.color = "var(--gray-text)";
-            msg.innerText = "Checking student records...";
+<script>
+    // --- Supabase Config ---
+    const SB_URL = "https://khazeoycsjdqnmwodncw.supabase.co";
+    const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoYXplb3ljc2pkcW5td29kbmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MDMwOTMsImV4cCI6MjA3ODQ3OTA5M30.h-WabaGcQZ968sO2ImetccUaRihRFmO2mUKCdPiAbEI";
+    const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
-            try {
-                // 1. Check if user exists
-                let { data, error } = await supabase
-                    .from('assignment')
-                    .select('userName')
-                    .eq('userName', username)
-                    .single();
+    /**
+     * Optional: Checks if user has already finished the lesson 
+     * to show a warning before they click Login.
+     */
+    async function checkStatus() {
+        const user = document.getElementById('username-input').value.trim();
+        const lesson = document.getElementById('lesson-select').value;
+        const msgDiv = document.getElementById('status-msg');
 
-                if (error && error.code !== 'PGRST116') throw error;
-
-                if (data) {
-                    proceedToAssignment(username, lessonField.value);
-                } else {
-                    // New User Flow
-                    msg.innerHTML = `
-                        <div style="color: #ed8936; margin-bottom:12px; font-weight:bold;">
-                            User not found. Is this your first time?
-                        </div>
-                        <button onclick="createNewUser('${username}', '${lessonField.value}', '${hourValue}')" 
-                                style="background: var(--black); color: white; width: 100%;">
-                            Yes, Create My Account
-                        </button>
-                        <p onclick="location.reload()" style="cursor:pointer; text-decoration:underline; font-size:12px; margin-top:10px;">
-                            No, let me re-type my name
-                        </p>
-                    `;
-                    loginBtn.style.display = 'none';
-                }
-
-            } catch (err) {
-                console.error(err);
-                msg.innerText = "Connection error. Check your internet.";
-                loginBtn.disabled = false;
-            }
+        if (user.length < 2) {
+            msgDiv.innerText = "";
+            return;
         }
 
-        async function createNewUser(username, lesson, hour) {
-            const msg = document.getElementById('msg');
-            msg.innerText = "Setting up your portal...";
+        const { data } = await supabaseClient
+            .from('assignment')
+            .select('*')
+            .eq('userName', user)
+            .eq('hour', 0)
+            .maybeSingle();
 
-            const { error } = await supabase
-                .from('assignment')
-                .insert([{ 
-                    userName: username,
-                    hour: hour, 
-                    C6Transformation: 0,
-                    LinearSystem: 0,
-                    FigureGrowth: 0,
-                    SolveX: 0,
-                    BoxPlot: 0
-                }]);
+        if (data && data[lesson] === true) {
+            msgDiv.style.color = "#f59e0b";
+            msgDiv.innerText = `⚠️ ${lesson} is already marked complete for this user.`;
+        } else if (data) {
+            msgDiv.style.color = "#22c55e";
+            msgDiv.innerText = "✓ Record found. Progress will be updated.";
+        } else {
+            msgDiv.style.color = "#64748b";
+            msgDiv.innerText = "New user detected. Entry will be created.";
+        }
+    }
 
-            if (error) {
-                console.error(error);
-                msg.innerText = "Error creating account. Try a different name.";
-            } else {
-                proceedToAssignment(username, lesson);
-            }
+    /**
+     * Logic to pass data to assignment.html
+     */
+    function handleLogin() {
+        const user = document.getElementById('username-input').value.trim();
+        const hour = document.getElementById('hour-select').value;
+        const lesson = document.getElementById('lesson-select').value;
+
+        if (!user) {
+            alert("Please enter a username.");
+            return;
         }
 
-        function proceedToAssignment(username, lesson) {
-            sessionStorage.setItem('current_user', username);
-            sessionStorage.setItem('target_lesson', lesson);
-            window.location.href = 'assignment.html';
-        }
-    </script>
+        // Save selection to session so the Hub can read it
+        sessionStorage.setItem('current_user', user);
+        sessionStorage.setItem('target_hour', hour);
+        sessionStorage.setItem('target_lesson', lesson);
+        sessionStorage.setItem('total_work_time', 0); // Reset timer for new session
+
+        // Redirect to the portal page
+        window.location.href = 'assignment.html';
+    }
+</script>
+
 </body>
 </html>
