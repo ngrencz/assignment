@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dev Control | v1.8.0</title>
+    <title>Dev Control | v1.8.2</title>
     
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -16,41 +16,45 @@
     <script src="skill_boxplot.js"></script>
 
     <style>
+        /* CORE RESET - PROTECTING YOUR BUBBLE UI */
         body { margin: 0; padding: 20px; font-family: 'Segoe UI', sans-serif; background: #f1f5f9; height: 100vh; box-sizing: border-box; overflow: hidden; }
         
-        /* 1. RESTORED TITLE BUBBLE */
+        /* 1. TITLE BUBBLE */
         .header-card { 
             background: white; border: 1px solid #e2e8f0; border-radius: 12px; 
-            padding: 10px 25px; margin-bottom: 20px; text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: center; align-items: center; gap: 10px;
+            padding: 12px 25px; margin-bottom: 20px; text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: center; align-items: center; gap: 15px;
         }
 
-        .master-grid { display: grid; grid-template-columns: 360px 1fr; gap: 20px; height: calc(100vh - 100px); }
+        .master-grid { display: grid; grid-template-columns: 380px 1fr; gap: 20px; height: calc(100vh - 120px); }
         
-        /* COLUMN 1: SIDEBAR */
-        .sidebar { display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 5px; }
+        /* COLUMN 1: SIDEBAR (LOG ON TOP) */
+        .sidebar { display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
         
-        /* 2. RESTORED SECTION BUBBLES */
-        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        
-        /* COLUMN 2: MAIN STAGE */
-        .main-stage { display: flex; flex-direction: column; gap: 20px; overflow: hidden; }
-
-        /* 3. RESTORED LOG BUBBLE */
+        /* 2. LOG BUBBLE */
         .log-card { 
             background: #1a1a1a; border-radius: 12px; padding: 15px; 
-            height: 200px; display: flex; flex-direction: column; border: 1px solid #333;
+            height: 220px; display: flex; flex-direction: column; border: 1px solid #333;
         }
         .log-box { flex-grow: 1; color: #4CBB17; font-family: monospace; font-size: 11px; overflow-y: auto; }
 
-        /* 4. RESTORED GAME AREA BUBBLE */
+        /* 3. CONTROL BUBBLES */
+        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+        /* COLUMN 2: GAME AREA */
+        .main-stage { display: flex; flex-direction: column; overflow: hidden; }
+
+        /* 4. GAME AREA BUBBLE - SOLVEX FIX */
         .game-card { 
             background: white; border: 1px solid #e2e8f0; border-radius: 12px; 
-            padding: 40px; flex-grow: 1; overflow-y: auto; display: flex; 
+            padding: 50px; flex-grow: 1; overflow-y: auto; display: flex; 
             flex-direction: column; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            justify-content: flex-start;
         }
 
-        /* UI Elements */
+        /* Restoring SolverX Two-Line Spacing */
+        #q-content { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 30px; }
+
         .section-tag { color: #0ea5e9; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #f1f5f9; margin-bottom: 12px; display: block; }
         input[type="range"] { width: 100%; accent-color: #4CBB17; margin: 8px 0; cursor: pointer; }
         button { cursor: pointer; font-weight: bold; padding: 12px; border-radius: 8px; border: none; background: #6366f1; color: white; width: 100%; margin-top: 10px; }
@@ -63,19 +67,24 @@
 
 <div class="header-card">
     <h1 style="margin:0; font-size: 18px;">Module <span style="color:#4CBB17">Troubleshooter</span></h1>
-    <div style="color:#64748b; font-size: 12px; border-left: 1px solid #ddd; padding-left: 10px;">Target: <b>test_user</b> | v1.8.0</div>
+    <div style="color:#64748b; font-size: 12px; border-left: 1px solid #ddd; padding-left: 15px;">Target: <b>test_user</b> | v1.8.2</div>
 </div>
 
 <div class="master-grid">
     <div class="sidebar">
+        <div class="log-card">
+            <div style="font-size: 10px; color: #888; margin-bottom: 5px; font-weight: bold; text-transform: uppercase;">System Log</div>
+            <div class="log-box" id="log">Debugger Ready...</div>
+        </div>
+
         <div class="card" style="border-top: 4px solid #0ea5e9;">
-            <span class="section-tag">1. Assignment Context</span>
+            <span class="section-tag">1. Context Control</span>
             <select id="lesson-selector" onchange="syncUIWithLesson()">
                 <option value="">-- Choose Lesson --</option>
                 <option value="C6Review">C6Review</option>
             </select>
             <div id="assign-state-ui" style="display:none; margin-top:10px;">
-                <label style="font-size:11px; font-weight:bold;">Boolean State (DB):</label>
+                <label style="font-size:11px; font-weight:bold;">Boolean (C6Review):</label>
                 <select id="bool-toggle" onchange="updateAssignmentBool()">
                     <option value="false">False</option>
                     <option value="true">True</option>
@@ -109,24 +118,13 @@
                 <div class="slider-label" style="font-size:10px;">IQR <span id="v-BoxPlotIQR">0</span></div><input type="range" id="s-BoxPlotIQR" min="0" max="10" value="0" oninput="updateVal('BoxPlotIQR')">
                 <div class="slider-label" style="font-size:10px;">Outliers <span id="v-BoxPlotOutlier">0</span></div><input type="range" id="s-BoxPlotOutlier" min="0" max="10" value="0" oninput="updateVal('BoxPlotOutlier')">
             </details>
-
-            <details>
-                <summary>Transformations: <span id="agg-C6Transformation">0</span></summary>
-                <input type="range" id="s-C6Transformation" min="0" max="10" value="0" oninput="updateVal('C6Transformation')">
-                <div class="slider-label" style="font-size:10px;">Translation <span id="v-C6Translation">0</span></div><input type="range" id="s-C6Translation" min="0" max="10" value="0" oninput="updateVal('C6Translation')">
-                <div class="slider-label" style="font-size:10px;">Rotation <span id="v-C6Rotation">0</span></div><input type="range" id="s-C6Rotation" min="0" max="10" value="0" oninput="updateVal('C6Rotation')">
-            </details>
         </div>
     </div>
 
     <div class="main-stage">
-        <div class="log-card">
-            <div style="font-size: 10px; color: #888; margin-bottom: 5px; font-weight: bold; text-transform: uppercase;">System Log</div>
-            <div class="log-box" id="log">Debugger initialized...</div>
-        </div>
-
         <div class="game-card">
-            <div id="q-content"></div>
+            <div id="q-content">
+                </div>
         </div>
     </div>
 </div>
@@ -149,8 +147,8 @@
                 const val = data[c] ?? 0;
                 if(s) s.value = val; if(v) v.innerText = val; if(a) a.innerText = val;
             });
-            log(`Synced DB for test_user.`);
-        } catch(e) { log("Error: Check Supabase Connection."); }
+            log(`DB Synced.`);
+        } catch(e) { log("Sync Error."); }
     }
 
     async function updateVal(id) {
@@ -164,7 +162,7 @@
         const lesson = document.getElementById('lesson-selector').value;
         const val = document.getElementById('bool-toggle').value === 'true';
         await window.supabaseClient.from(TABLE).update({ [lesson]: val }).eq('userName', 'test_user').eq('hour', 0);
-        log(`${lesson} updated to ${val}`);
+        log(`Boolean Update: ${lesson} = ${val}`);
     }
 
     function forceLoadModule() {
