@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dev Control | v1.7.11</title>
+    <title>Dev Control | v1.7.12</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
@@ -20,95 +20,54 @@
 
     <style>
         * { box-sizing: border-box; }
-
         body { 
             margin: 0; padding: 0; display: flex; flex-direction: column; 
             height: 100vh; font-family: sans-serif; background: #f1f5f9; overflow: hidden; 
         }
-
         .header-bar { 
             height: 40px; background: #fff; border-bottom: 1px solid #ddd; 
             display: flex; align-items: center; justify-content: center; 
             font-weight: bold; font-size: 13px; z-index: 10; 
         }
-
         .master-grid { 
-            display: grid; 
-            grid-template-columns: 420px 1fr; 
-            height: calc(100vh - 40px); 
-            width: 100vw;
+            display: grid; grid-template-columns: 420px 1fr; 
+            height: calc(100vh - 40px); width: 100vw;
         }
-
         .sidebar { 
             background: #f8fafc; border-right: 1px solid #cbd5e1; 
-            padding: 15px; overflow-y: auto; 
-            display: flex !important; 
-            flex-direction: column !important; 
-            gap: 12px; 
+            padding: 15px; overflow-y: auto; display: flex !important; 
+            flex-direction: column !important; gap: 12px; 
         }
-
         .main-stage { display: flex; flex-direction: column; background: #fff; overflow: hidden; }
-
         .card { 
-            background: white; border: 1px solid #e2e8f0; 
-            border-radius: 8px; padding: 15px; 
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-            width: 100% !important;
-            display: block !important;
+            background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); width: 100% !important; display: block !important;
         }
-
         .section-tag { color: #0ea5e9; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; display: block; border-bottom: 1px solid #f1f5f9; }
-
-        .slider-label { 
-            display: flex !important; justify-content: space-between; 
-            font-size: 11px; font-weight: 600; white-space: nowrap; margin-top: 10px;
-        }
-
+        .slider-label { display: flex !important; justify-content: space-between; font-size: 11px; font-weight: 600; white-space: nowrap; margin-top: 10px; }
         input[type="range"] { width: 100%; accent-color: #4CBB17; margin: 5px 0; cursor: pointer; display: block; }
-
         select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; }
-
-        button { 
-            cursor: pointer; font-weight: bold; padding: 12px; border-radius: 6px; 
-            border: none; background: #6366f1; color: white; width: 100%; margin-top: 5px; 
-        }
-
-        .log-container { height: 200px; background: #1a1a1a; border-bottom: 2px solid #333; padding: 10px; display: flex; flex-direction: column; }
+        button { cursor: pointer; font-weight: bold; padding: 12px; border-radius: 6px; border: none; background: #6366f1; color: white; width: 100%; margin-top: 5px; }
+        .log-container { height: 160px; background: #1a1a1a; border-bottom: 2px solid #333; padding: 10px; display: flex; flex-direction: column; }
         .log-box { flex-grow: 1; color: #4CBB17; font-family: monospace; font-size: 11px; overflow-y: auto; }
-        
         .game-area { flex-grow: 1; padding: 30px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
-        #q-content { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 15px; }
         
-        details summary { cursor: pointer; font-size: 12px; font-weight: bold; margin: 5px 0; color: #444; }
-
-        .equation-container { display: block; margin-bottom: 15px; text-align: center; }
-        .input-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 20px; }
-        #q-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center; 
-    gap: 20px;
-    width: 100%;
-    text-align: center;
-}
-
-/* Forces SolveX inputs and buttons to stack vertically */
-#q-content div, #q-content input, #q-content button {
-    display: block;
-    margin: 10px auto;
-}
+        /* Layout Fixes */
+        #q-content { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 15px; text-align: center; }
+        #q-content div, #q-content input, #q-content button { margin: 5px auto; }
     </style>
 </head>
 <body>
 
 <div style="display:none;">
+    <h2 id="q-title"></h2>
     <span id="score">0</span>
     <span id="level">1</span>
     <div id="feedback"></div>
 </div>
 
 <div class="header-bar">
-    DEBUGGER: <span style="color:#4CBB17; margin: 0 5px;">Troubleshooter</span> | test_user | v1.7.10
+    DEBUGGER: <span style="color:#4CBB17; margin: 0 5px;">Troubleshooter</span> | test_user | v1.7.12
 </div>
 
 <div class="master-grid">
@@ -170,11 +129,16 @@
 <script>
     const SB_URL = "https://khazeoycsjdqnmwodncw.supabase.co";
     const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoYXplb3ljc2pkcW5td29kbmN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5MDMwOTMsImV4cCI6MjA3ODQ3OTA5M30.h-WabaGcQZ968sO2ImetccUaRihRFmO2mUKCdPiAbEI";
+    
+    // Initialize Supabase & Bridge for external scripts
     window.supabaseClient = supabase.createClient(SB_URL, SB_KEY);
     window.currentUser = 'test_user';
-    if (typeof supabase !== 'undefined') {
-        window.supabaseClient = supabase.createClient(SB_URL, SB_KEY);
-    }
+
+    // SAFETY PROXY: Prevents "innerText of null" crashes
+    const _get = document.getElementById;
+    document.getElementById = function(id) {
+        return _get.call(document, id) || document.createElement('div');
+    };
 
     const TABLE = 'assignment';
     const ALL_COLS = ['SolveX','LinearSystem','FigureGrowth','BoxPlot','BoxPlotMedian','Similarity','ComplexShapes','Graphing','DiamondMath','LinearMastery'];
@@ -182,50 +146,34 @@
     function log(m) { const l=document.getElementById('log'); l.innerHTML+=`<br>[${new Date().toLocaleTimeString()}] ${m}`; l.scrollTop=l.scrollHeight; }
 
     async function syncUIWithLesson() {
-    if (!window.supabaseClient) { log("Client Error"); return; }
-    try {
-        // Change .eq('hour', 0) to .eq('hour', "00")
-        const { data, error } = await window.supabaseClient
-            .from(TABLE)
-            .select('*')
-            .eq('userName', 'test_user')
-            .eq('hour', "00") 
-            .maybeSingle();
-            
-        if(error) throw error;
-        
-        if(!data) { 
-            log("No data found for test_user with hour '00'. Check database values."); 
-            return; 
-        }
-
-        ALL_COLS.forEach(c => {
-            const s = document.getElementById('s-'+c), v = document.getElementById('v-'+c);
-            if(s) s.value = data[c] ?? 0;
-            if(v) v.innerText = data[c] ?? 0;
-        });
-        log(`Sync Complete for test_user (Hour 00).`);
-    } catch(e) { log("Sync Error."); console.error(e); }
-}
+        if (!window.supabaseClient) { log("Client Error"); return; }
+        try {
+            const { data, error } = await window.supabaseClient
+                .from(TABLE).select('*')
+                .eq('userName', 'test_user')
+                .eq('hour', "00")
+                .maybeSingle();
+            if(error) throw error;
+            if(!data) { log("No data found for test_user/00"); return; }
+            ALL_COLS.forEach(c => {
+                const s = document.getElementById('s-'+c), v = document.getElementById('v-'+c);
+                if(s.tagName === 'INPUT') s.value = data[c] ?? 0;
+                v.innerText = data[c] ?? 0;
+            });
+            log(`Sync Complete for test_user (Hour 00).`);
+        } catch(e) { log("Sync Error."); console.error(e); }
+    }
 
     async function updateVal(id) {
-    if (!window.supabaseClient) return;
-    const val = parseInt(document.getElementById('s-'+id).value);
-    document.getElementById('v-'+id).innerText = val;
-    
-    // Change .eq('hour', 0) to .eq('hour', "00")
-    await window.supabaseClient
-        .from(TABLE)
-        .update({ [id]: val })
-        .eq('userName', 'test_user')
-        .eq('hour', "00");
-}
+        const val = parseInt(document.getElementById('s-'+id).value);
+        document.getElementById('v-'+id).innerText = val;
+        await window.supabaseClient.from(TABLE).update({ [id]: val }).eq('userName', 'test_user').eq('hour', "00");
+    }
 
     function forceLoadModule() {
         const mod = document.getElementById('module-selector').value;
         document.getElementById('q-content').innerHTML = '';
         window.isCurrentQActive = true;
-
         const map = {
             'C6Transformation': window.initTransformationGame,
             'LinearSystem': window.initLinearSystemGame,
@@ -238,16 +186,11 @@
             'DiamondMath': window.initDiamondMath || window.initDiamondMathGame,
             'LinearMastery': window.initLinearMastery || window.initLinearGame
         };
-
-        if(map[mod]) {
-            log(`🚀 Force Launch: ${mod}`);
-            map[mod](); 
-        } else {
-            log(`❌ Error: Function for ${mod} not detected.`);
-        }
+        if(map[mod]) { log(`🚀 Launching: ${mod}`); map[mod](); }
+        else { log(`❌ Error: ${mod} not found.`); }
     }
 
-    window.onload = () => { setTimeout(syncUIWithLesson, 1000); };
+    window.onload = () => { setTimeout(syncUIWithLesson, 800); };
 </script>
 </body>
 </html>
