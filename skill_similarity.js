@@ -1,8 +1,10 @@
 /**
- * skill_similarity.js - Full Integrated Visual Version
- * - Draws similar polygons with labeled sides.
- * - Supports wide range of scale factors with dynamic canvas fitting.
- * - Requires decimal answers and provides specific hints.
+ * skill_similarity.js - Full Unabridged Version
+ * - Draws similar polygons with labeled sides using vector math to prevent overlaps.
+ * - Supports an expanded scale factor list (0.25 to 10.0).
+ * - Implements auto-scaling and dynamic positioning to keep shapes on-canvas.
+ * - Handles decimal validation and specific hints for k, x, and y.
+ * - Syncs with Supabase for mastery tracking.
  */
 
 var similarityData = {
@@ -19,30 +21,36 @@ var similarityData = {
 
 window.initSimilarityGame = async function() {
     if (!document.getElementById('q-content')) return;
-    
+
     // Reset State
     similarityData.round = 1;
+    
+    // Initialize Mastery
     if (!window.userMastery) window.userMastery = {};
 
-    // Sync initial score from Supabase
+    // Sync initial score from database
     try {
-        const h = sessionStorage.getItem('target_hour') || "00";
         if (window.supabaseClient && window.currentUser) {
+            const h = sessionStorage.getItem('target_hour') || "00";
             const { data } = await window.supabaseClient
                 .from('assignment')
                 .select('Similarity')
                 .eq('userName', window.currentUser)
                 .eq('hour', h)
                 .maybeSingle();
+            
             if (data) window.userMastery.Similarity = data.Similarity || 0;
         }
-    } catch (e) { console.log("Sync error", e); }
+    } catch (e) { 
+        console.log("Sync error", e); 
+    }
 
     generateSimilarityProblem();
     renderSimilarityUI();
 };
 
 function generateSimilarityProblem() {
+    // 1. Pick a Shape Template
     const templates = [
         { name: 'Triangle', sides: [6, 8, 10], type: 'tri' },
         { name: 'Triangle', sides: [9, 12, 15], type: 'tri' },
@@ -54,19 +62,20 @@ function generateSimilarityProblem() {
     similarityData.shapeName = template.name;
     similarityData.shapeType = template.type;
     
-    // Expanded Scale Factors
+    // 2. Determine Scale Factor from expanded list
     const factors = [0.25, 0.5, 0.75, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.5, 4, 4.5, 5, 6, 7, 8, 9, 10]; 
     similarityData.scaleFactor = factors[Math.floor(Math.random() * factors.length)];
     
     similarityData.baseSides = [...template.sides];
     similarityData.scaledSides = similarityData.baseSides.map(s => s * similarityData.scaleFactor);
     
-    // Assign indices for Known pair, X (on scaled), and Y (on original)
-    let indices = [0, 1, 2]; 
-    similarityData.indices.known = indices[0];
-    similarityData.indices.x = indices[1];
-    similarityData.indices.y = indices[2];
+    // 3. Assign Roles (Known, x, y)
+    // Triangle/Trap indices usually 0, 1, 2. Rect uses 0 and 1.
+    similarityData.indices.known = 0;
+    similarityData.indices.x = 1;
+    similarityData.indices.y = 2;
     
+    // Store Solutions
     similarityData.solution.k = similarityData.scaleFactor;
     similarityData.solution.x = similarityData.scaledSides[similarityData.indices.x];
     similarityData.solution.y = similarityData.baseSides[similarityData.indices.y];
@@ -83,25 +92,25 @@ function renderSimilarityUI() {
             </div>
 
             <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:10px; margin-bottom:20px; text-align:center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
-                <canvas id="simCanvas" width="600" height="220" style="max-width:100%; height:auto;"></canvas>
+                <canvas id="simCanvas" width="600" height="240" style="max-width:100%; height:auto;"></canvas>
             </div>
 
             <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
                 <p style="font-size: 0.9rem; color: #475569; margin-bottom: 15px; text-align:center;">
-                    Find the <b>Scale Factor (k)</b>, then solve for the missing sides <b>x</b> and <b>y</b>.
+                    Find the <b>Scale Factor (k)</b>, then solve for <b>x</b> and <b>y</b>. Answer in decimal form.
                 </p>
                 <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; margin-bottom:20px;">
                     <div>
                         <label class="sim-label">Scale Factor (k)</label>
-                        <input type="number" id="inp-k" class="sim-input" step="0.01" placeholder="Decimal">
+                        <input type="number" id="inp-k" class="sim-input" step="0.01" placeholder="k">
                     </div>
                     <div>
                         <label class="sim-label" style="color:#ef4444;">Solve y (Orig)</label>
-                        <input type="number" id="inp-y" class="sim-input" step="0.01" placeholder="Decimal">
+                        <input type="number" id="inp-y" class="sim-input" step="0.01" placeholder="y">
                     </div>
                     <div>
                         <label class="sim-label" style="color:#2563eb;">Solve x (Scaled)</label>
-                        <input type="number" id="inp-x" class="sim-input" step="0.01" placeholder="Decimal">
+                        <input type="number" id="inp-x" class="sim-input" step="0.01" placeholder="x">
                     </div>
                 </div>
                 
@@ -123,9 +132,9 @@ function drawSimilarShapes() {
     const d = similarityData;
     const idx = d.indices;
 
-    // --- Dynamic Scaling Logic to fit large factors ---
-    const totalUnits = Math.max(...d.baseSides) + Math.max(...d.scaledSides) + 12;
-    const dynamicScale = Math.min(600 / totalUnits, 15); 
+    // Calculate dynamic scale to ensure both shapes fit side-by-side
+    const totalRequiredUnits = Math.max(...d.baseSides) + Math.max(...d.scaledSides) + 12;
+    const dynamicScale = Math.min(600 / totalRequiredUnits, 16); 
 
     ctx.lineWidth = 2;
     ctx.font = "bold 15px Arial";
@@ -154,17 +163,20 @@ function drawSimilarShapes() {
         ctx.stroke();
 
         sides.forEach((val, i) => {
+            // Logic to only show 3 relevant labels (except for rectangles which need 4)
             if (i > 2 && d.shapeType !== 'rect') return; 
+
             let p1 = pts[i];
             let p2 = pts[(i + 1) % pts.length];
             let midX = (p1.x + p2.x) / 2 + offsetX;
             let midY = (p1.y + p2.y) / 2 + offsetY;
 
-            let dirX = (p1.y - p2.y);
-            let dirY = (p2.x - p1.x);
-            let len = Math.sqrt(dirX*dirX + dirY*dirY);
-            let offX = (dirX/len) * 18;
-            let offY = (dirY/len) * 18;
+            // Vector math to offset text perpendicularly away from the edge
+            let dx = p2.x - p1.x;
+            let dy = p2.y - p1.y;
+            let len = Math.sqrt(dx*dx + dy*dy);
+            let nx = -dy/len; // Normal X
+            let ny = dx/len;  // Normal Y
 
             let displayVal = val;
             ctx.fillStyle = "#1e293b";
@@ -175,25 +187,25 @@ function drawSimilarShapes() {
             } else if (isScaled && i === idx.x) { 
                 displayVal = "x"; 
                 ctx.fillStyle = "#2563eb"; 
-            } else if (i !== idx.known && i !== idx.x && i !== idx.y) {
-                return;
+            } else if (i !== idx.known) {
+                return; // Hide other sides to keep it focused
             }
 
-            ctx.fillText(displayVal, midX + offX - 5, midY + offY + 5);
+            ctx.fillText(displayVal, midX + nx*22 - 5, midY + ny*22 + 5);
         });
     }
 
-    const origPts = getPolygon(d.shapeType, d.baseSides, dynamicScale);
-    const scaledPts = getPolygon(d.shapeType, d.scaledSides, dynamicScale); 
+    const oPts = getPolygon(d.shapeType, d.baseSides, dynamicScale);
+    const sPts = getPolygon(d.shapeType, d.scaledSides, dynamicScale);
 
-    const origWidth = Math.max(...origPts.map(p => p.x));
-    drawShape(origPts, 40, 60, d.baseSides, false);
+    const oW = Math.max(...oPts.map(p => p.x));
+    drawShape(oPts, 40, 70, d.baseSides, false);
     
     ctx.fillStyle = "#94a3b8";
     ctx.font = "20px Arial";
-    ctx.fillText("➔ k", origWidth + 80, 120);
+    ctx.fillText("➔ k", oW + 85, 130);
     
-    drawShape(scaledPts, origWidth + 140, 60, d.scaledSides, true);
+    drawShape(sPts, oW + 155, 70, d.scaledSides, true);
 }
 
 window.checkSimilarityAnswer = async function() {
@@ -209,7 +221,7 @@ window.checkSimilarityAnswer = async function() {
     if (isNaN(uk) || isNaN(ux) || isNaN(uy)) {
         feedback.style.color = "#991b1b";
         feedback.style.backgroundColor = "#fee2e2";
-        feedback.innerText = "Please provide decimal answers for all three fields.";
+        feedback.innerText = "Please provide decimal answers for all fields.";
         return;
     }
 
@@ -241,9 +253,9 @@ window.checkSimilarityAnswer = async function() {
         if (!kOk) {
             feedback.innerText = "❌ Hint: k = Scaled Side ÷ Matching Original Side.";
         } else if (!yOk) {
-            feedback.innerText = "❌ Hint for y: To find an Original side, divide the Scaled side by k.";
+            feedback.innerText = "❌ Hint for y: Divide the Scaled side by your Scale Factor (k).";
         } else if (!xOk) {
-            feedback.innerText = "❌ Hint for x: To find a Scaled side, multiply the Original side by k.";
+            feedback.innerText = "❌ Hint for x: Multiply the Original side by your Scale Factor (k).";
         }
     }
 };
@@ -261,7 +273,7 @@ async function updateSimilarityScore(amount) {
                 .update({ Similarity: next })
                 .eq('userName', window.currentUser)
                 .eq('hour', h);
-        } catch (e) { console.error("Supabase update failed", e); }
+        } catch (e) { console.error("Supabase error", e); }
     }
 }
 
