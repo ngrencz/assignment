@@ -74,6 +74,7 @@ function generateDiamondProblem() {
     let a, b;
 
     // --- GENERATION (Difficulty tiers based on Mastery) ---
+    // (Kept exactly as you provided)
     if (lvl <= 5) {
         console.log("[DiamondMath] Using Tier 1 (Positive Integers)");
         a = Math.floor(Math.random() * 12) + 1;
@@ -116,25 +117,33 @@ function generateDiamondProblem() {
     diamondData.top = a * b;    
     diamondData.bottom = a + b; 
 
-    // --- HIDING LOGIC ---
+    // --- HIDING LOGIC (Modified for Level 8+ Difficulty) ---
     const r = Math.random();
     
     if (r < 0.25) {
+        // Student sees A & B, finds Top & Bottom
         diamondData.missing = ['top', 'bottom'];
     } 
     else if (r < 0.50) {
-        diamondData.missing = ['A', 'B'];
+        // Student finds A & B (The "Classic Puzzle")
+        // We bypass this for Level 8+ because factoring decimals is too hard.
+        if (lvl >= 8) {
+            diamondData.missing = ['top', 'bottom']; // Default back to finding results
+        } else {
+            diamondData.missing = ['A', 'B'];
+        }
     } 
     else if (r < 0.75) {
+        // Student finds one Side and the Product
         const sideToHide = Math.random() > 0.5 ? 'A' : 'B';
         diamondData.missing = ['top', sideToHide];
     } 
     else {
+        // Student finds one Side and the Sum
         const sideToHide = Math.random() > 0.5 ? 'A' : 'B';
         diamondData.missing = ['bottom', sideToHide];
     }
 }
-
 function renderDiamondUI() {
     const qContent = document.getElementById('q-content');
     if (!qContent) return;
