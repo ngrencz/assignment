@@ -1,14 +1,14 @@
 /**
  * skill_complexshapes.js
  * - Grade Level: 7th/8th
- * - VERSION: 2.1
- * - FIXED: Perimeter logic bug (left wall was missing for Tri/Trap).
- * - FIXED: Number inputs now accept commas (e.g., 1,234.5).
- * - FIXED: Hints no longer give away calculated numbers or redundant side lengths.
+ * - VERSION: 3.0 (Dynamic Placement & Level 8 Boss Mode)
+ * - NEW: Attachments randomize to Top, Bottom, Left, or Right.
+ * - NEW: At mastery level 8+, generates TWO attachments.
  */
 
 var complexData = {
-    components: [],
+    rect: {},
+    attachments: [],
     totalArea: 0,
     totalPerimeter: 0,
     unit: 'units',
@@ -16,7 +16,7 @@ var complexData = {
 
 window.initComplexShapesGame = async function() {
     if (typeof log === 'function') {
-        log("🚀 Complex Shapes: v2.1 - Commas Allowed & Logic Fixed");
+        log("🚀 Complex Shapes: v3.0 - Multi-Side Placement & Boss Mode");
     }
 
     if (!document.getElementById('q-content')) return;
@@ -51,94 +51,98 @@ function startComplexRound() {
 function generateComplexProblem() {
     const units = ['ft', 'in', 'cm', 'm', 'yds'];
     complexData.unit = units[Math.floor(Math.random() * units.length)];
-    complexData.components = [];
+    complexData.attachments = [];
     
     let baseW = Math.floor(Math.random() * 60) + 140;
     let baseH = Math.floor(Math.random() * 60) + 120;
     
-    // Component 1: Rectangle data
-    let rectComp = {
-        type: 'rectangle',
-        w: baseW, h: baseH, 
-        area: baseW * baseH,
-        hintA: `Area = base × height`,
-        hintP: `Remember: The bottom edge matches the top edge.`
-    };
+    complexData.rect = { w: baseW, h: baseH };
+    complexData.totalArea = baseW * baseH;
+    
+    // Start with the perimeter of just the rectangle
+    complexData.totalPerimeter = (baseW * 2) + (baseH * 2);
 
-    let attachComp = {};
-    let totalWidth = baseW;
+    // Level 8+ Boss Mode gets 2 attachments
+    let mastery = window.userMastery.ComplexShapes || 0;
+    let numAttachments = mastery >= 8 ? 2 : 1;
 
-    let typePool = ['triangle', 'semicircle', 'trapezoid'];
-    let type = typePool[Math.floor(Math.random() * typePool.length)];
+    let sides = ['top', 'right', 'bottom', 'left'];
+    sides.sort(() => Math.random() - 0.5); // Shuffle sides
+    let chosenSides = sides.slice(0, numAttachments);
 
-    if (type === 'triangle') {
-        let triH = Math.floor(Math.random() * 40) + 60; 
-        let slantValue = Math.sqrt(Math.pow(baseH/2, 2) + Math.pow(triH, 2)).toFixed(1);
+    function createAttachment(side) {
+        let isVertical = (side === 'left' || side === 'right');
+        let baseLen = isVertical ? baseH : baseW;
         
-        attachComp = {
-            type: 'triangle', base: baseH, height: triH,
-            slantLabel: slantValue,
-            area: 0.5 * baseH * triH,
-            hintA: `Area = ½ × base × height`,
-            hintP: `Perimeter: Only add up the outer boundaries.`
-        };
-        complexData.totalArea = (baseW * baseH) + (0.5 * baseH * triH);
-        // FIXED: Added baseH (left wall) to perimeter
-        complexData.totalPerimeter = (baseW * 2) + baseH + (parseFloat(slantValue) * 2);
-        totalWidth += triH;
-
-    } else if (type === 'semicircle') {
-        let r = baseH / 2;
-        let arcValue = 3.14 * r; 
+        let typePool = ['triangle', 'semicircle', 'trapezoid'];
+        let type = typePool[Math.floor(Math.random() * typePool.length)];
+        let comp = { type: type, side: side, baseLen: baseLen };
         
-        attachComp = {
-            type: 'semicircle', r: r,
-            area: (3.14 * Math.pow(r, 2)) / 2,
-            hintA: `Area = (3.14 × r²) / 2`,
-            hintP: `Curved Boundary = 3.14 × r`
-        };
-        complexData.totalArea = (baseW * baseH) + ((3.14 * Math.pow(r, 2)) / 2);
-        complexData.totalPerimeter = (baseW * 2) + baseH + arcValue;
-        totalWidth += r;
+        let ext = 0;
 
-    } else if (type === 'trapezoid') {
-        let topB = Math.floor(baseH * 0.5); 
-        let trapW = Math.floor(Math.random() * 40) + 50; 
-        let diff = (baseH - topB) / 2; 
-        let slantValue = Math.sqrt(Math.pow(trapW, 2) + Math.pow(diff, 2)).toFixed(1);
-
-        attachComp = {
-            type: 'trapezoid', b1: baseH, b2: topB, h: trapW,
-            slantLabel: slantValue,
-            area: 0.5 * (baseH + topB) * trapW,
-            hintA: `Area = ½ × (base 1 + base 2) × height`,
-            hintP: `Perimeter: Only add up the outer boundaries.`
-        };
-        complexData.totalArea = (baseW * baseH) + (0.5 * (baseH + topB) * trapW);
-        // FIXED: Added baseH (left wall) to perimeter
-        complexData.totalPerimeter = (baseW * 2) + baseH + topB + (parseFloat(slantValue) * 2);
-        totalWidth += trapW;
+        if (type === 'triangle') {
+            let h = Math.floor(Math.random() * 40) + 60; 
+            let slant = Math.sqrt(Math.pow(baseLen/2, 2) + Math.pow(h, 2)).toFixed(1);
+            comp.height = h; comp.slant = slant;
+            ext = h;
+            comp.area = 0.5 * baseLen * h;
+            comp.outerP = parseFloat(slant) * 2;
+            comp.hintA = `Triangle: ½ × base × height`;
+            
+        } else if (type === 'semicircle') {
+            let r = baseLen / 2;
+            comp.r = r;
+            ext = r;
+            comp.area = (3.14 * Math.pow(r, 2)) / 2;
+            comp.outerP = 3.14 * r;
+            comp.hintA = `Semicircle: (3.14 × r²) / 2`;
+            
+        } else if (type === 'trapezoid') {
+            let topB = Math.floor(baseLen * 0.5); 
+            let h = Math.floor(Math.random() * 30) + 50; 
+            let diff = (baseLen - topB) / 2; 
+            let slant = Math.sqrt(Math.pow(h, 2) + Math.pow(diff, 2)).toFixed(1);
+            comp.b1 = baseLen; comp.b2 = topB; comp.h = h; comp.slant = slant;
+            ext = h;
+            comp.area = 0.5 * (baseLen + topB) * h;
+            comp.outerP = topB + (parseFloat(slant) * 2);
+            comp.hintA = `Trapezoid: ½(base1 + base2) × height`;
+        }
+        
+        comp.extent = ext;
+        complexData.totalArea += comp.area;
+        // Subtract the covered wall, add the new outer boundary
+        complexData.totalPerimeter = complexData.totalPerimeter - baseLen + comp.outerP;
+        
+        return comp;
     }
+
+    // Generate shapes and calculate boundaries to center the canvas
+    let minX = 0, maxX = baseW, minY = 0, maxY = baseH;
+
+    chosenSides.forEach(side => {
+        let att = createAttachment(side);
+        complexData.attachments.push(att);
+        
+        if (side === 'right') maxX = Math.max(maxX, baseW + att.extent);
+        if (side === 'left') minX = Math.min(minX, -att.extent);
+        if (side === 'bottom') maxY = Math.max(maxY, baseH + att.extent);
+        if (side === 'top') minY = Math.min(minY, -att.extent);
+    });
 
     const canvasW = 550;
     const canvasH = 300;
-    let startX = (canvasW - totalWidth) / 2;
-    let startY = (canvasH - baseH) / 2;
-
-    rectComp.x = startX;
-    rectComp.y = startY;
-    attachComp.x = startX + baseW;
-    attachComp.y = startY; 
-
-    complexData.components.push(rectComp);
-    complexData.components.push(attachComp);
+    let totalW = maxX - minX;
+    let totalH = maxY - minY;
+    
+    complexData.rect.x = (canvasW - totalW) / 2 - minX;
+    complexData.rect.y = (canvasH - totalH) / 2 - minY;
 }
 
 function renderComplexUI() {
     const qContent = document.getElementById('q-content');
     if (!qContent) return;
 
-    // Notice type="text" on inputs to allow commas
     qContent.innerHTML = `
         <div style="max-width:650px; margin:0 auto; font-family: sans-serif;">
             <div style="text-align:center; margin-bottom:8px; color:#64748b; font-weight:bold; font-size:14px;">
@@ -191,6 +195,8 @@ function drawComplex() {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const u = complexData.unit;
+    const rect = complexData.rect;
+    
     ctx.clearRect(0, 0, 550, 300);
     ctx.lineWidth = 3;
     ctx.strokeStyle = "#334155";
@@ -198,9 +204,9 @@ function drawComplex() {
     function drawLabel(text, x, y, color = "#1e293b", isInternal = false) {
         ctx.save();
         ctx.font = "bold 14px Arial";
-        ctx.fillStyle = "rgba(255,255,255,0.85)";
         let w = ctx.measureText(text).width;
-        ctx.fillRect(x - w/2 - 5, y - 12, w + 10, 18); 
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.fillRect(x - w/2 - 5, y - 12, w + 10, 20); 
         ctx.fillStyle = isInternal ? "#64748b" : color;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -219,85 +225,125 @@ function drawComplex() {
         ctx.restore();
     }
 
-    complexData.components.forEach(p => {
+    // 1. Draw Rectangle Main Body
+    ctx.fillStyle = "#f8fafc";
+    ctx.beginPath();
+    ctx.rect(rect.x, rect.y, rect.w, rect.h);
+    ctx.fill(); ctx.stroke();
+
+    // 2. Determine which sides of the rectangle to label based on what is covered
+    let hasTop = complexData.attachments.some(a => a.side === 'top');
+    let hasBot = complexData.attachments.some(a => a.side === 'bottom');
+    let hasLeft = complexData.attachments.some(a => a.side === 'left');
+    let hasRight = complexData.attachments.some(a => a.side === 'right');
+
+    if (!hasTop) drawLabel(`${rect.w} ${u}`, rect.x + rect.w/2, rect.y - 15);
+    else if (!hasBot) drawLabel(`${rect.w} ${u}`, rect.x + rect.w/2, rect.y + rect.h + 15);
+    else drawLabel(`w: ${rect.w} ${u}`, rect.x + rect.w/2, rect.y + rect.h/2 - 15, "#64748b", true);
+
+    if (!hasLeft) drawLabel(`${rect.h} ${u}`, rect.x - 45, rect.y + rect.h/2);
+    else if (!hasRight) drawLabel(`${rect.h} ${u}`, rect.x + rect.w + 45, rect.y + rect.h/2);
+    else drawLabel(`h: ${rect.h} ${u}`, rect.x + rect.w/2, rect.y + rect.h/2 + 15, "#64748b", true);
+
+    // 3. Draw Attachments dynamically rotated
+    complexData.attachments.forEach(p => {
+        ctx.save();
+        let currentRot = 0;
+        
+        if (p.side === 'right') {
+            ctx.translate(rect.x + rect.w, rect.y);
+            currentRot = 0;
+        } else if (p.side === 'bottom') {
+            ctx.translate(rect.x + rect.w, rect.y + rect.h);
+            currentRot = Math.PI / 2;
+        } else if (p.side === 'left') {
+            ctx.translate(rect.x, rect.y + rect.h);
+            currentRot = Math.PI;
+        } else if (p.side === 'top') {
+            ctx.translate(rect.x, rect.y);
+            currentRot = Math.PI * 1.5;
+        }
+        ctx.rotate(currentRot);
+
+        // Nested helper: draws labels perfectly upright regardless of canvas rotation
+        function drawUpright(text, localX, localY, color="#1e293b", isInternal=false) {
+            ctx.save();
+            ctx.translate(localX, localY);
+            ctx.rotate(-currentRot);
+            drawLabel(text, 0, 0, color, isInternal);
+            ctx.restore();
+        }
+
         ctx.fillStyle = "#f1f5f9";
         ctx.beginPath();
         
-        if (p.type === 'rectangle') {
-            ctx.rect(p.x, p.y, p.w, p.h);
-            ctx.fill(); ctx.stroke();
-            drawLabel(`${p.w} ${u}`, p.x + p.w/2, p.y - 15); 
-            drawLabel(`${p.h} ${u}`, p.x - 45, p.y + p.h/2); 
-        } 
-        else if (p.type === 'triangle') {
-            ctx.moveTo(p.x, p.y);
-            ctx.lineTo(p.x + p.height, p.y + p.base/2); 
-            ctx.lineTo(p.x, p.y + p.base); 
+        if (p.type === 'triangle') {
+            ctx.moveTo(0, 0);
+            ctx.lineTo(p.height, p.baseLen/2); 
+            ctx.lineTo(0, p.baseLen); 
             ctx.closePath();
             ctx.fill(); ctx.stroke();
             
-            drawDashedLine(p.x, p.y + p.base/2, p.x + p.height, p.y + p.base/2);
-
-            drawLabel(`${p.slantLabel}`, p.x + p.height/2 + 10, p.y + p.base*0.25 - 20); 
-            drawLabel(`${p.slantLabel}`, p.x + p.height/2 + 10, p.y + p.base*0.75 + 20); 
-            drawLabel(`h: ${p.height} ${u}`, p.x + p.height/2, p.y + p.base/2 - 15, "#64748b", true);
+            drawDashedLine(0, p.baseLen/2, p.height, p.baseLen/2);
+            drawUpright(`${p.slant}`, p.height/2 + 10, p.baseLen*0.25 - 20); 
+            drawUpright(`${p.slant}`, p.height/2 + 10, p.baseLen*0.75 + 20); 
+            drawUpright(`h: ${p.height}`, p.height/2, p.baseLen/2 - 15, "#64748b", true);
         } 
         else if (p.type === 'semicircle') {
-            let cy = p.y + p.r; 
-            ctx.arc(p.x, cy, p.r, -Math.PI/2, Math.PI/2);
+            let cy = p.r; 
+            ctx.arc(0, cy, p.r, -Math.PI/2, Math.PI/2);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
             
-            drawDashedLine(p.x, cy, p.x + p.r, cy);
-            drawLabel(`r: ${p.r} ${u}`, p.x + p.r/2, cy - 15, "#64748b", true);
+            drawDashedLine(0, cy, p.r, cy);
+            drawUpright(`r: ${p.r}`, p.r/2, cy - 15, "#64748b", true);
         } 
         else if (p.type === 'trapezoid') {
-            let vOffset = (p.b1 - p.b2) / 2; 
-            
-            ctx.moveTo(p.x, p.y); 
-            ctx.lineTo(p.x + p.h, p.y + vOffset); 
-            ctx.lineTo(p.x + p.h, p.y + vOffset + p.b2); 
-            ctx.lineTo(p.x, p.y + p.b1); 
+            let vOffset = (p.baseLen - p.b2) / 2; 
+            ctx.moveTo(0, 0); 
+            ctx.lineTo(p.h, vOffset); 
+            ctx.lineTo(p.h, vOffset + p.b2); 
+            ctx.lineTo(0, p.baseLen); 
             ctx.closePath();
             ctx.fill(); ctx.stroke();
             
-            let midY = p.y + p.b1/2;
-            drawDashedLine(p.x, midY, p.x + p.h, midY);
+            let midY = p.baseLen/2;
+            drawDashedLine(0, midY, p.h, midY);
 
-            drawLabel(`${p.b2} ${u}`, p.x + p.h + 45, midY); 
-            drawLabel(`${p.slantLabel}`, p.x + p.h/2, p.y - 15); 
-            drawLabel(`${p.slantLabel}`, p.x + p.h/2, p.y + p.b1 + 25); 
-            drawLabel(`h: ${p.h} ${u}`, p.x + p.h/2, midY - 15, "#64748b", true);
+            drawUpright(`${p.b2}`, p.h + 25, midY); 
+            drawUpright(`${p.slant}`, p.h/2, -15); 
+            drawUpright(`${p.slant}`, p.h/2, p.baseLen + 25); 
+            drawUpright(`h: ${p.h}`, p.h/2, midY - 15, "#64748b", true);
         }
+        ctx.restore();
     });
 
+    // Unified Hint System
     canvas.onclick = (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
-        const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+        const r = canvas.getBoundingClientRect();
+        const mx = (e.clientX - r.left) * (canvas.width / r.width);
+        const my = (e.clientY - r.top) * (canvas.height / r.height);
         const bubble = document.getElementById('hint-bubble');
         
-        if (mx > complexData.components[0].x && mx < complexData.components[0].x + 400 && 
-            my > complexData.components[0].y && my < complexData.components[0].y + 300) {
-            
-            let part = complexData.components.find(p => {
-               if(p.type === 'rectangle') return mx >= p.x && mx <= p.x + p.w;
-               return mx > p.x; 
+        // If they click generally inside the canvas bounds
+        if (mx > 20 && mx < canvas.width - 20 && my > 20 && my < canvas.height - 20) {
+            let hintHtml = `<strong style="color:#60a5fa;">Formulas:</strong><br>• Rect: base × height<br>`;
+            complexData.attachments.forEach(a => {
+                hintHtml += `• ${a.hintA}<br>`;
             });
+            hintHtml += `<br><em style="color:#a7f3d0;">Perimeter: Add all OUTER boundaries!</em>`;
             
-            if (part) {
-                bubble.innerHTML = `<strong>Formula Help:</strong><br>${part.hintA}<br>${part.hintP}`;
-                bubble.style.left = `${mx + 10}px`;
-                bubble.style.top = `${my - 40}px`;
-                bubble.style.display = 'block';
-                setTimeout(() => { bubble.style.display = 'none'; }, 4000);
-            }
+            bubble.innerHTML = hintHtml;
+            // Bound the bubble to the screen so it doesn't get cut off
+            bubble.style.left = `${Math.min(mx + 10, 350)}px`;
+            bubble.style.top = `${Math.min(my - 20, 200)}px`;
+            bubble.style.display = 'block';
+            setTimeout(() => { bubble.style.display = 'none'; }, 4500);
         }
     };
 }
 
 window.checkComplexWin = async function() {
-    // Strip commas from input before parsing
     const rawA = document.getElementById('ans-area-val').value.replace(/,/g, '');
     const rawP = document.getElementById('ans-perim-val').value.replace(/,/g, '');
     
