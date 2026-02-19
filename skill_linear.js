@@ -1,14 +1,14 @@
 /**
- * skill_linear.js - v2.3.3
- * RESTORED: Hub control flow and original completion logic.
- * Fixed: Grid-perfect math and subterranean flight prevention.
+ * skill_linear.js - v2.3.4
+ * RESTORED: Conceptual hints (rate of change / starting value).
+ * FIXED: Grid-perfect math, hub control flow, and subterranean prevention.
  */
 
 (function() {
-    console.log("%c [LinearMath] v2.3.3 - Restored Hub Flow ", "background: #1e293b; color: #3b82f6; font-weight: bold;");
+    console.log("%c [LinearMath] v2.3.4 - Conceptual Scaffolding Restored ", "background: #1e293b; color: #3b82f6; font-weight: bold;");
 
     var linearData = {
-        version: "2.3.3",
+        version: "2.3.4",
         scenario: {},      
         stage: 'variables', 
         errors: 0,         
@@ -103,11 +103,11 @@
                      <button onclick="checkLinearVars()" class="btn-primary">Next</button>`;
         }
         else if (stage === 'slope') {
-            html += `<h4>Part 2: Slope</h4><p>What is the <b>slope (m)</b>?</p>
+            html += `<h4>Part 2: Slope</h4><p>What is the <b>slope (m)</b>, or the <b>rate of change</b>?</p>
                      <input type="number" id="inp-m" class="math-input"> <button onclick="checkLinearM()" class="btn-primary">Check</button>`;
         }
         else if (stage === 'intercept') {
-            html += `<h4>Part 3: Intercept</h4><p>What is the <b>y-intercept (b)</b>?</p>
+            html += `<h4>Part 3: Intercept</h4><p>What is the <b>y-intercept (b)</b>, or the <b>starting value</b>?</p>
                      <input type="number" id="inp-b" class="math-input"> <button onclick="checkLinearB()" class="btn-primary">Check</button>`;
         }
         else if (stage === 'eq') {
@@ -116,14 +116,14 @@
         }
         else if (stage === 'graph') {
             html += `<h4>Part 5: Graphing</h4><div class="eq-highlight">Equation: ${displayEq}</div>
-                     <p>Plot 3 points on the grid. (Scale: ${linearData.gridConfig.scaleStep})</p>
+                     <p>Plot 3 points on the grid. Each line = ${linearData.gridConfig.scaleStep} units.</p>
                      <canvas id="linCanvas" width="400" height="400" style="border:1px solid #000; background:white; cursor:crosshair;"></canvas>`;
         }
         else if (stage === 'solve') {
             let tx = linearData.targetSolveX;
             linearData.targetSolveY = (s.m * tx) + s.b;
             html += `<h4>Part 6: Predict</h4><div class="eq-highlight">Equation: ${displayEq}</div>
-                     <p>What would the <b>${s.labelY}</b> be after <b>${tx} ${s.unitX}</b>?</p>
+                     <p>Based on your equation, what would the <b>${s.labelY}</b> be after <b>${tx} ${s.unitX}</b>?</p>
                      <input type="number" id="inp-solve" class="math-input"> ${s.unitY}
                      <button onclick="checkLinearD()" class="btn-primary">Submit</button>`;
         }
@@ -138,7 +138,7 @@
         if (document.getElementById('inp-x').value === 'correct' && document.getElementById('inp-y').value === 'correct') {
             linearData.stage = 'slope'; renderLinearStage();
         } else {
-            document.getElementById('lin-feedback').innerHTML = `<span style="color:red">x is time, y is the result.</span>`;
+            document.getElementById('lin-feedback').innerHTML = `<span style="color:red">x is the independent variable (time), y is the result.</span>`;
         }
     };
 
@@ -147,7 +147,7 @@
             linearData.stage = 'intercept'; renderLinearStage();
         } else {
             linearData.errors++;
-            document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Incorrect.</span>`;
+            document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Look for the rate (how much it changes each ${linearData.scenario.unitX}). Use negative if decreasing.</span>`;
         }
     };
 
@@ -156,7 +156,7 @@
             linearData.stage = 'eq'; renderLinearStage();
         } else {
             linearData.errors++;
-            document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Incorrect.</span>`;
+            document.getElementById('lin-feedback').innerHTML = `<span style="color:red">What was the value at time zero?</span>`;
         }
     };
 
@@ -172,7 +172,7 @@
             linearData.stage = 'graph'; renderLinearStage();
         } else {
             linearData.errors++;
-            document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Use y = mx + b.</span>`;
+            document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Combine your slope (m) and intercept (b) into y = mx + b.</span>`;
         }
     };
 
@@ -230,7 +230,7 @@
                 draw();
             } else {
                 linearData.errors++;
-                document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Wrong point.</span>`;
+                document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Point (${valX}, ${valY}) is not on the line.</span>`;
             }
         };
     }
@@ -244,7 +244,7 @@
             showFinalLinearMessage(inc);
         } else {
             linearData.errors++;
-            document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Incorrect.</span>`;
+            document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Incorrect. Use your equation to find the result.</span>`;
         }
     };
 
@@ -263,7 +263,6 @@
     }
 
     function showFinalLinearMessage(inc) {
-        // ORIGINAL HUB CONTROL FLOW RESTORED
         if (typeof window.showMasteryCompletion === 'function') {
             window.showMasteryCompletion(inc);
         } else {
