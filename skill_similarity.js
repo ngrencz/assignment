@@ -1,10 +1,9 @@
 /**
  * skill_similarity.js - Full Unabridged Version
- * - Draws similar polygons with labeled sides using vector math to prevent overlaps.
- * - Supports an expanded scale factor list (0.25 to 10.0).
- * - Implements auto-scaling and dynamic positioning to keep shapes on-canvas.
- * - Handles decimal validation and specific hints for k, x, and y.
- * - Syncs with Supabase for mastery tracking.
+ * - FIX: Prevents overlapping labels using vector normal offsets.
+ * - FIX: Auto-scales canvas to fit factors from 0.25 to 10 without cutoffs.
+ * - FIX: Dynamic positioning to prevent shapes from bunching up.
+ * - Includes decimal input enforcement and specific hints.
  */
 
 var similarityData = {
@@ -22,13 +21,9 @@ var similarityData = {
 window.initSimilarityGame = async function() {
     if (!document.getElementById('q-content')) return;
 
-    // Reset State
     similarityData.round = 1;
-    
-    // Initialize Mastery
     if (!window.userMastery) window.userMastery = {};
 
-    // Sync initial score from database
     try {
         if (window.supabaseClient && window.currentUser) {
             const h = sessionStorage.getItem('target_hour') || "00";
@@ -50,7 +45,6 @@ window.initSimilarityGame = async function() {
 };
 
 function generateSimilarityProblem() {
-    // 1. Pick a Shape Template
     const templates = [
         { name: 'Triangle', sides: [6, 8, 10], type: 'tri' },
         { name: 'Triangle', sides: [9, 12, 15], type: 'tri' },
@@ -62,20 +56,16 @@ function generateSimilarityProblem() {
     similarityData.shapeName = template.name;
     similarityData.shapeType = template.type;
     
-    // 2. Determine Scale Factor from expanded list
     const factors = [0.25, 0.5, 0.75, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.5, 4, 4.5, 5, 6, 7, 8, 9, 10]; 
     similarityData.scaleFactor = factors[Math.floor(Math.random() * factors.length)];
     
     similarityData.baseSides = [...template.sides];
     similarityData.scaledSides = similarityData.baseSides.map(s => s * similarityData.scaleFactor);
     
-    // 3. Assign Roles (Known, x, y)
-    // Triangle/Trap indices usually 0, 1, 2. Rect uses 0 and 1.
     similarityData.indices.known = 0;
     similarityData.indices.x = 1;
     similarityData.indices.y = 2;
     
-    // Store Solutions
     similarityData.solution.k = similarityData.scaleFactor;
     similarityData.solution.x = similarityData.scaledSides[similarityData.indices.x];
     similarityData.solution.y = similarityData.baseSides[similarityData.indices.y];
@@ -97,25 +87,23 @@ function renderSimilarityUI() {
 
             <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0;">
                 <p style="font-size: 0.9rem; color: #475569; margin-bottom: 15px; text-align:center;">
-                    Find the <b>Scale Factor (k)</b>, then solve for <b>x</b> and <b>y</b>. Answer in decimal form.
+                    Enter answers in <b>decimal format</b>.
                 </p>
                 <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; margin-bottom:20px;">
                     <div>
                         <label class="sim-label">Scale Factor (k)</label>
-                        <input type="number" id="inp-k" class="sim-input" step="0.01" placeholder="k">
+                        <input type="number" id="inp-k" class="sim-input" step="0.01" placeholder="Decimal">
                     </div>
                     <div>
                         <label class="sim-label" style="color:#ef4444;">Solve y (Orig)</label>
-                        <input type="number" id="inp-y" class="sim-input" step="0.01" placeholder="y">
+                        <input type="number" id="inp-y" class="sim-input" step="0.01" placeholder="Decimal">
                     </div>
                     <div>
                         <label class="sim-label" style="color:#2563eb;">Solve x (Scaled)</label>
-                        <input type="number" id="inp-x" class="sim-input" step="0.01" placeholder="x">
+                        <input type="number" id="inp-x" class="sim-input" step="0.01" placeholder="Decimal">
                     </div>
                 </div>
-                
                 <div id="sim-feedback" style="text-align:center; min-height:45px; font-weight:bold; margin-bottom:15px; font-size:14px; padding: 12px; border-radius: 8px; display: flex; align-items: center; justify-content: center;"></div>
-                
                 <button onclick="checkSimilarityAnswer()" class="sim-btn">Submit Answers</button>
             </div>
         </div>
@@ -132,9 +120,9 @@ function drawSimilarShapes() {
     const d = similarityData;
     const idx = d.indices;
 
-    // Calculate dynamic scale to ensure both shapes fit side-by-side
-    const totalRequiredUnits = Math.max(...d.baseSides) + Math.max(...d.scaledSides) + 12;
-    const dynamicScale = Math.min(600 / totalRequiredUnits, 16); 
+    // AUTO-SCALE: Fits any factor (0.25 to 10) by calculating required units
+    const totalRequiredUnits = Math.max(...d.baseSides) + Math.max(...d.scaledSides) + 15;
+    const dynamicScale = Math.min(600 / totalRequiredUnits, 18); 
 
     ctx.lineWidth = 2;
     ctx.font = "bold 15px Arial";
@@ -163,7 +151,6 @@ function drawSimilarShapes() {
         ctx.stroke();
 
         sides.forEach((val, i) => {
-            // Logic to only show 3 relevant labels (except for rectangles which need 4)
             if (i > 2 && d.shapeType !== 'rect') return; 
 
             let p1 = pts[i];
@@ -171,12 +158,12 @@ function drawSimilarShapes() {
             let midX = (p1.x + p2.x) / 2 + offsetX;
             let midY = (p1.y + p2.y) / 2 + offsetY;
 
-            // Vector math to offset text perpendicularly away from the edge
+            // VECTOR MATH: Pushes text outward so they never overlap the shape lines
             let dx = p2.x - p1.x;
             let dy = p2.y - p1.y;
             let len = Math.sqrt(dx*dx + dy*dy);
-            let nx = -dy/len; // Normal X
-            let ny = dx/len;  // Normal Y
+            let nx = -dy/len; 
+            let ny = dx/len;  
 
             let displayVal = val;
             ctx.fillStyle = "#1e293b";
@@ -188,10 +175,11 @@ function drawSimilarShapes() {
                 displayVal = "x"; 
                 ctx.fillStyle = "#2563eb"; 
             } else if (i !== idx.known) {
-                return; // Hide other sides to keep it focused
+                return; 
             }
 
-            ctx.fillText(displayVal, midX + nx*22 - 5, midY + ny*22 + 5);
+            // Draw text with enough offset to stay clear of lines
+            ctx.fillText(displayVal, midX + nx*25 - 5, midY + ny*25 + 5);
         });
     }
 
@@ -199,13 +187,14 @@ function drawSimilarShapes() {
     const sPts = getPolygon(d.shapeType, d.scaledSides, dynamicScale);
 
     const oW = Math.max(...oPts.map(p => p.x));
-    drawShape(oPts, 40, 70, d.baseSides, false);
+    drawShape(oPts, 50, 80, d.baseSides, false);
     
     ctx.fillStyle = "#94a3b8";
     ctx.font = "20px Arial";
-    ctx.fillText("➔ k", oW + 85, 130);
+    ctx.fillText("➔ k", oW + 100, 140);
     
-    drawShape(sPts, oW + 155, 70, d.scaledSides, true);
+    // Dynamic horizontal spacing so shapes never touch
+    drawShape(sPts, oW + 180, 80, d.scaledSides, true);
 }
 
 window.checkSimilarityAnswer = async function() {
@@ -253,9 +242,9 @@ window.checkSimilarityAnswer = async function() {
         if (!kOk) {
             feedback.innerText = "❌ Hint: k = Scaled Side ÷ Matching Original Side.";
         } else if (!yOk) {
-            feedback.innerText = "❌ Hint for y: Divide the Scaled side by your Scale Factor (k).";
+            feedback.innerText = "❌ Hint for y: Divide the Scaled side by k.";
         } else if (!xOk) {
-            feedback.innerText = "❌ Hint for x: Multiply the Original side by your Scale Factor (k).";
+            feedback.innerText = "❌ Hint for x: Multiply the Original side by k.";
         }
     }
 };
@@ -283,7 +272,7 @@ async function finishSimilarityGame() {
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:300px; animation: fadeIn 0.5s;">
             <div style="font-size:60px; margin-bottom: 20px;">📐</div>
             <h2 style="color:#1e293b; margin:0;">Module Complete!</h2>
-            <p style="color:#64748b;">You've mastered scale factors and similar figures.</p>
+            <p style="color:#64748b;">Mastery achieved for similar figures.</p>
         </div>
     `;
     setTimeout(() => { 
