@@ -5,6 +5,7 @@
  * - Connects dots A->B->C->D automatically as found.
  * - Fills shape when complete.
  * - 4 Rounds.
+ * - UPDATED: Numbered axes added to the grid.
  */
 
 var graphData = {
@@ -153,8 +154,28 @@ function drawGrid() {
     ctx.moveTo(0, center); ctx.lineTo(w, center);
     ctx.stroke();
 
+    // 2.5 Draw Axis Numbers
+    ctx.fillStyle = "#64748b";
+    ctx.font = "10px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    for (let i = -graphData.range; i <= graphData.range; i++) {
+        if (i === 0) continue; // Skip the origin (0,0) to prevent center clutter
+        
+        // Draw every 2 units to prevent text overlapping
+        if (i % 2 === 0) {
+            // X-axis text (placed slightly below the line)
+            ctx.fillText(i, center + (i * scale), center + 12);
+            
+            // Y-axis text (placed slightly left of the line)
+            // Note: Standard math graphs have positive Y moving UP, 
+            // but HTML Canvas coordinates have positive Y moving DOWN.
+            ctx.fillText(i, center - 12, center - (i * scale));
+        }
+    }
+
     // 3. Draw Connections (The Shape Logic)
-    // We check every pair (A-B, B-C, C-D, D-A). If BOTH are found, we draw the line.
     ctx.lineWidth = 3;
     ctx.strokeStyle = "#3b82f6";
     
@@ -191,6 +212,7 @@ function drawGrid() {
 
     // 4. Draw The Dots (Vertices)
     graphData.targetPoints.forEach(p => {
+        // Only draw points the user has actually found
         if (graphData.foundPoints.includes(p.label)) {
             const px = center + (p.x * scale);
             const py = center - (p.y * scale);
