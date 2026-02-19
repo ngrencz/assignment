@@ -1,13 +1,13 @@
 /**
- * skill_linear.js - v2.5.0
- * Restored Production Version with Enhanced Pedagogical Hints
- * Contains full DB logic, Hub control, and context-aware feedback.
+ * skill_linear.js - v2.5.1
+ * STABILITY PATCH: Deterministic scenario generation to prevent infinite loops.
+ * FEATURES: Contextual hints for m and b, full DB sync, and Hub hand-off.
  */
 
-console.log("%c [LinearMath] - Pedagogical Build Loaded ", "background: #1e293b; color: #3b82f6; font-weight: bold;");
+console.log("%c [LinearMath] - Stability Build 2.5.1 ", "background: #1e293b; color: #3b82f6; font-weight: bold;");
 
 var linearData = {
-    version: "2.5.0",
+    version: "2.5.1",
     scenario: {},      
     stage: 'variables', 
     errors: 0,         
@@ -20,12 +20,14 @@ var linearData = {
 window.initLinearMastery = async function() {
     if (!document.getElementById('q-content')) return;
 
+    // Reset State
     linearData.stage = 'variables';
     linearData.errors = 0;
     linearData.pointsClicked = [];
     
     if (!window.userMastery) window.userMastery = {};
 
+    // 1. Database Sync
     try {
         if (window.supabaseClient && window.currentUser) {
             const currentHour = sessionStorage.getItem('target_hour');
@@ -61,25 +63,25 @@ function generateLinearScenario() {
     const t = templates[Math.floor(Math.random() * templates.length)];
     const scales = [1, 2, 5, 10];
     const scale = scales[Math.floor(Math.random() * scales.length)];
-    const maxLimit = scale * 10;
+    const maxVal = scale * 10;
+    
+    let b, m, tx = 6;
 
-    let b = (Math.floor(Math.random() * 5) + 1) * scale; 
-    let m = (Math.floor(Math.random() * 2) + 1) * scale;
-    let tx = 6; 
-
-    if (t.type === 'decay') {
-        b = maxLimit - (Math.floor(Math.random() * 2) * scale);
-        m = -m;
-        while (b + (m * tx) < 0 && tx > 2) {
-            if (Math.abs(m) > scale) { m += scale; } 
-            else { tx -= 1; } 
-        }
+    // DETERMINISTIC MATH (Prevents Freezing)
+    if (t.type === 'growth') {
+        b = Math.floor(Math.random() * 4) * scale; 
+        let maxM = Math.floor((maxVal - b) / tx);
+        m = Math.max(1, Math.floor(Math.random() * maxM) + 1);
+        if (m > scale && m % scale !== 0) m = Math.floor(m / scale) * scale;
     } else {
-        while (b + (m * tx) > maxLimit) { m = Math.max(scale, m - scale); }
+        b = maxVal - (Math.floor(Math.random() * 2) * scale);
+        let maxM = Math.floor(b / tx);
+        m = -Math.max(1, Math.floor(Math.random() * maxM) + 1);
+        if (Math.abs(m) > scale && Math.abs(m) % scale !== 0) m = -Math.floor(Math.abs(m) / scale) * scale;
     }
 
     linearData.gridConfig.scaleStep = scale;
-    linearData.gridConfig.maxVal = maxLimit;
+    linearData.gridConfig.maxVal = maxVal;
     linearData.targetSolveX = tx;
 
     linearData.scenario = {
@@ -145,7 +147,7 @@ window.checkLinearVars = function() {
     } else {
         document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Not quite.</span>`;
         hintBox.style.display = "block";
-        hintBox.innerHTML = `<strong>Hint:</strong> <b>x</b> is your independent variable (usually time), and <b>y</b> is the result or total being measured.`;
+        hintBox.innerHTML = `<strong>Hint:</strong> <b>x</b> is your independent variable (time), and <b>y</b> is the result or total.`;
     }
 };
 
@@ -153,30 +155,27 @@ window.checkLinearM = function() {
     const val = parseFloat(document.getElementById('inp-m').value);
     const hintBox = document.getElementById('lin-hint');
     const s = linearData.scenario;
-
     if (val === s.m) {
         linearData.stage = 'intercept'; renderLinearStage();
     } else {
         linearData.errors++;
         document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Incorrect.</span>`;
         hintBox.style.display = "block";
-        let direction = s.type === 'decay' ? "decreasing (negative)" : "increasing (positive)";
-        hintBox.innerHTML = `<strong>Hint:</strong> Slope (m) is the rate of change. How much is the ${s.labelY} changing every 1 ${s.unitX}? Since it is ${direction}, check your sign!`;
+        let dir = s.type === 'decay' ? "decreasing (negative)" : "increasing (positive)";
+        hintBox.innerHTML = `<strong>Hint:</strong> Slope is the rate of change. How much is the ${s.labelY} changing every 1 ${s.unitX}? Since it is ${dir}, check your sign!`;
     }
 };
 
 window.checkLinearB = function() {
     const val = parseFloat(document.getElementById('inp-b').value);
     const hintBox = document.getElementById('lin-hint');
-    const s = linearData.scenario;
-
-    if (val === s.b) {
+    if (val === linearData.scenario.b) {
         linearData.stage = 'eq'; renderLinearStage();
     } else {
         linearData.errors++;
         document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Incorrect.</span>`;
         hintBox.style.display = "block";
-        hintBox.innerHTML = `<strong>Hint:</strong> The y-intercept (b) is the <b>starting value</b>. What was the ${s.labelY} before any ${s.unitX} passed?`;
+        hintBox.innerHTML = `<strong>Hint:</strong> The y-intercept (b) is the <b>starting value</b>. What was the ${linearData.scenario.labelY} at 0 ${linearData.scenario.unitX}?`;
     }
 };
 
@@ -184,19 +183,18 @@ window.checkLinearEq = async function() {
     let userVal = document.getElementById('inp-eq').value.replace(/\s/g, '').toLowerCase();
     const { m, b } = linearData.scenario;
     const hintBox = document.getElementById('lin-hint');
-
     let mPart = (m === 1 ? "x" : (m === -1 ? "-x" : m + "x"));
     let bPart = (b === 0 ? "" : (b > 0 ? "+" + b : b));
     let correct = mPart + bPart;
 
     if (userVal === correct || userVal === "y=" + correct) {
-        await handleSubSuccess('LinearEq');
+        await updateSkill('LinearEq', 1);
         linearData.stage = 'graph'; renderLinearStage();
     } else {
         linearData.errors++;
-        document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Check your formatting.</span>`;
+        document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Check your format.</span>`;
         hintBox.style.display = "block";
-        hintBox.innerHTML = `<strong>Hint:</strong> Use the form <b>y = mx + b</b>. You found m = ${m} and b = ${b}. Combine them into one equation.`;
+        hintBox.innerHTML = `<strong>Hint:</strong> Use <b>y = mx + b</b>. You found m = ${m} and b = ${b}.`;
     }
 };
 
@@ -232,7 +230,7 @@ function setupLinearGraph() {
             const yStart = 400 - ((linearData.scenario.b / cfg.maxVal) * 400);
             const yEnd = 400 - (((linearData.scenario.m * 10 + linearData.scenario.b) / cfg.maxVal) * 400);
             ctx.beginPath(); ctx.moveTo(0, yStart); ctx.lineTo(400, yEnd); ctx.stroke();
-            setTimeout(async () => { await handleSubSuccess('LinearGraph'); linearData.stage = 'solve'; renderLinearStage(); }, 1500);
+            setTimeout(async () => { await updateSkill('LinearGraph', 1); linearData.stage = 'solve'; renderLinearStage(); }, 1500);
         }
     };
     draw();
@@ -242,17 +240,13 @@ function setupLinearGraph() {
         const rect = canvas.getBoundingClientRect();
         const gx = Math.round((e.clientX - rect.left) / pixelStep);
         const gy = Math.round((400 - (e.clientY - rect.top)) / pixelStep);
-        
-        let valX = gx; 
         let valY = gy * cfg.scaleStep;
-
-        if (Math.abs(valY - (linearData.scenario.m * valX + linearData.scenario.b)) < 0.001) {
+        if (Math.abs(valY - (linearData.scenario.m * gx + linearData.scenario.b)) < 0.001) {
             linearData.pointsClicked.push({cx: gx * pixelStep, cy: 400 - (gy * pixelStep)});
             draw();
-            document.getElementById('lin-feedback').innerHTML = "";
         } else {
             linearData.errors++;
-            document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Point (${valX}, ${valY}) is not on the line!</span>`;
+            document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Point (${gx}, ${valY}) is not on the line!</span>`;
         }
     };
 }
@@ -260,11 +254,8 @@ function setupLinearGraph() {
 window.checkLinearD = async function() {
     let val = parseFloat(document.getElementById('inp-solve').value);
     const hintBox = document.getElementById('lin-hint');
-    const s = linearData.scenario;
-    const tx = linearData.targetSolveX;
-
     if (Math.abs(val - linearData.targetSolveY) < 0.1) {
-        await handleSubSuccess('LinearSolve');
+        await updateSkill('LinearSolve', 1);
         let inc = linearData.errors <= 1 ? 2 : (linearData.errors >= 4 ? -1 : 0);
         await updateSkill('LinearMastery', inc);
         showFinalLinearMessage(inc);
@@ -272,11 +263,9 @@ window.checkLinearD = async function() {
         linearData.errors++;
         document.getElementById('lin-feedback').innerHTML = `<span style="color:red">Try again.</span>`;
         hintBox.style.display = "block";
-        hintBox.innerHTML = `<strong>Hint:</strong> Use your equation! Plug <b>${tx}</b> into <b>x</b>:<br>y = ${s.m}(${tx}) + ${s.b}`;
+        hintBox.innerHTML = `<strong>Hint:</strong> Use your equation! Plug <b>${linearData.targetSolveX}</b> into <b>x</b>: y = ${linearData.scenario.m}(${linearData.targetSolveX}) + ${linearData.scenario.b}`;
     }
 };
-
-async function handleSubSuccess(col) { await updateSkill(col, 1); }
 
 async function updateSkill(col, amt) {
     let curr = window.userMastery[col] || 0;
@@ -296,14 +285,10 @@ function showFinalLinearMessage(inc) {
             <p style="font-size:24px; color:${color}; font-weight:bold;">${inc > 0 ? '+2 Mastery Points' : 'Completed'}</p>
             <p style="color:#64748b; margin-top:15px;"><em>Loading next question...</em></p>
         </div>`;
-
-    setTimeout(() => {
-        if (typeof window.loadNextQuestion === 'function') {
-            window.loadNextQuestion();
-        }
-    }, 1500);
+    setTimeout(() => { if (typeof window.loadNextQuestion === 'function') window.loadNextQuestion(); }, 1500);
 }
 
+// Styles
 const styleId = 'linear-math-styles';
 if (!document.getElementById(styleId)) {
     const style = document.createElement('style');
@@ -313,7 +298,6 @@ if (!document.getElementById(styleId)) {
         .eq-highlight { background:#eff6ff; padding:8px; border-radius:4px; margin-bottom:10px; font-weight:bold; color:#1d4ed8; border:1px solid #bfdbfe; }
         .btn-primary { background:#1e293b; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:bold; }
         .math-input { font-size:18px; width:80px; padding:4px; }
-        #lin-feedback { margin-top:10px; font-weight:bold; }
     `;
     document.head.appendChild(style);
 }
