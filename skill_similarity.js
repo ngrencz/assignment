@@ -5,6 +5,7 @@
  * - MODIFICATION: Refined Scale Factors to prevent extreme size differences.
  * - MODIFICATION: Labels forced outside via vector normal.
  * - BUGFIX: Ensured corresponding side for 'y' always renders on the scaled shape.
+ * - BUGFIX 2: Centroid-based normal vectors to force all labels outside the shapes.
  */
 
 var similarityData = {
@@ -20,7 +21,6 @@ var similarityData = {
 };
 
 window.initSimilarityGame = async function() {
-    // Debugger log for test.html
     if (typeof log === 'function') {
         log("🚀 Similarity: 292-line Logic Restored | UI Tightened");
     }
@@ -62,7 +62,6 @@ function generateSimilarityProblem() {
     similarityData.shapeName = template.name;
     similarityData.shapeType = template.type;
     
-    // Scale Factors adjusted to keep shapes within reasonable visual bounds
     const factors = [0.5, 0.75, 1.25, 1.5, 2, 2.5, 3]; 
     similarityData.scaleFactor = factors[Math.floor(Math.random() * factors.length)];
     
@@ -135,7 +134,6 @@ function drawSimilarShapes() {
     const totalRequiredUnits = Math.max(...d.baseSides) + Math.max(...d.scaledSides) + 15;
     const maxUnitsHeight = Math.max(...d.baseSides, ...d.scaledSides);
     
-    // Original scaling logic that handles box boundaries
     const dynamicScale = Math.min(600 / totalRequiredUnits, 240 / maxUnitsHeight, 20); 
 
     ctx.lineWidth = 2;
@@ -164,6 +162,12 @@ function drawSimilarShapes() {
         ctx.fill();
         ctx.stroke();
 
+        // CENTROID CALCULATION: Find the exact center of the shape
+        let cx = 0, cy = 0;
+        pts.forEach(p => { cx += p.x; cy += p.y; });
+        cx = (cx / pts.length) + offsetX;
+        cy = (cy / pts.length) + offsetY;
+
         sides.forEach((val, i) => {
             if (i > 2 && d.shapeType !== 'rect') return; 
 
@@ -172,16 +176,16 @@ function drawSimilarShapes() {
             let midX = (p1.x + p2.x) / 2 + offsetX;
             let midY = (p1.y + p2.y) / 2 + offsetY;
 
-            let dx = p2.x - p1.x;
-            let dy = p2.y - p1.y;
-            let len = Math.sqrt(dx*dx + dy*dy);
-            let nx = -dy/len; 
-            let ny = dx/len;  
+            // CENTROID MATH: Push label directly away from the center
+            let vx = midX - cx;
+            let vy = midY - cy;
+            let vLen = Math.sqrt(vx * vx + vy * vy);
+            let nx = vx / vLen; 
+            let ny = vy / vLen;  
 
             let displayVal = val;
             ctx.fillStyle = "#1e293b";
 
-            // BUGFIX APPLIED HERE:
             if (!isScaled) {
                 if (i === idx.y) { displayVal = "y"; ctx.fillStyle = "#ef4444"; }
                 else if (i !== idx.known && i !== idx.x) return; 
