@@ -1,6 +1,7 @@
 /**
- * skill_figuregrowth.js - Multi-Step Logic Game
- * RESTORED & UPDATED: Automatic hints on error, step-specific logic, and hub control.
+ * skill_figuregrowth.js - v2.5.0
+ * UPDATED: Context-aware Step 1 hints (m vs b logic).
+ * RESTORED: Full production comments and robust error handling.
  */
 
 let currentPattern = {};
@@ -11,10 +12,7 @@ let lastM = null;
 
 // --- DRAG STATE VARIABLES ---
 let isDrawing = false;
-
-window.addEventListener('mouseup', () => {
-    isDrawing = false;
-});
+window.addEventListener('mouseup', () => { isDrawing = false; });
 
 window.initFigureGrowthGame = async function() {
     if (!document.getElementById('q-content')) return;
@@ -43,10 +41,10 @@ window.initFigureGrowthGame = async function() {
         console.log("Supabase sync error, using local state");
     }
 
+    // Logic: m (3-10), b (1-10)
     let m;
     do { m = Math.floor(Math.random() * 8) + 3; } while (m === lastM); 
     lastM = m;
-
     const b = Math.floor(Math.random() * 10) + 1; 
     
     const f1 = Math.floor(Math.random() * 2) + 1; 
@@ -60,23 +58,16 @@ window.initFigureGrowthGame = async function() {
     let safeLoops = 0;
     do {
         s3Fig = Math.floor(Math.random() * 4) + 1; 
-        while ((m * s3Fig) + b > 48 && s3Fig > 1) {
-            s3Fig--;
-        }
+        while ((m * s3Fig) + b > 48 && s3Fig > 1) { s3Fig--; }
         safeLoops++;
     } while ((s3Fig === f1 || s3Fig === f2 || s3Fig === s2Fig) && safeLoops < 20);
 
     currentPattern = {
-        m: m,
-        b: b,
-        f1Num: f1,
-        f1Count: (m * f1) + b,
-        f2Num: f2,
-        f2Count: (m * f2) + b,
-        step2Num: s2Fig,
-        step2Ans: (m * s2Fig) + b,
-        step3Num: s3Fig,
-        step3Ans: (m * s3Fig) + b
+        m: m, b: b,
+        f1Num: f1, f1Count: (m * f1) + b,
+        f2Num: f2, f2Count: (m * f2) + b,
+        step2Num: s2Fig, step2Ans: (m * s2Fig) + b,
+        step3Num: s3Fig, step3Ans: (m * s3Fig) + b
     };
 
     renderFigureUI();
@@ -86,8 +77,7 @@ function generateTileHTML(count, m, b, figNum) {
     const isExpert = (window.userMastery?.FigureGrowth || 0) >= 8;
     let html = `<div style="display: grid; grid-template-columns: repeat(5, 12px); gap: 1px; width: 65px; line-height: 0; margin: 0 auto;">`;
     for (let i = 0; i < count; i++) {
-        let color = '#3b82f6'; 
-        if (!isExpert && i < b) color = '#f97316'; 
+        let color = (i < b && !isExpert) ? '#f97316' : '#3b82f6'; 
         html += `<div style="width:12px; height:12px; background:${color}; border:0.5px solid white;"></div>`;
     }
     html += `</div>`;
@@ -186,34 +176,51 @@ function setupDrawingGrid() {
     }
 }
 
-window.showFigureHint = function() {
+/**
+ * Enhanced Hint Logic
+ * Checks specific user inputs for Step 1 to give targeted feedback.
+ */
+window.showFigureHint = function(wrongM, wrongB) {
     const hintBox = document.getElementById('hint-display');
     if(!hintBox) return;
     hintBox.style.display = "block";
     
     let message = "";
     if (currentStep === 1) {
-        message = `<strong>How to find the rule:</strong><br>
-                   1. Subtract the tiles: (${currentPattern.f2Count} - ${currentPattern.f1Count}) = <b>${currentPattern.f2Count - currentPattern.f1Count}</b>.<br>
-                   2. Divide by the change in figure numbers to find <b>m</b>.<br>
-                   3. Use your <b>m</b> to figure out the starting value (<b>b</b>).`;
+        if (wrongM) {
+            // Prioritize M hint
+            message = `<strong>How to find growth (m):</strong><br>
+                       The number of tiles increased by <b>${currentPattern.f2Count - currentPattern.f1Count}</b> over <b>${currentPattern.f2Num - currentPattern.f1Num}</b> figures.<br>
+                       Divide those to find <b>m</b>.`;
+        } else if (wrongB) {
+            // M is correct, but B is wrong
+            message = `<strong>How to find starting value (b):</strong><br>
+                       Figure ${currentPattern.f1Num} has ${currentPattern.f1Count} tiles. <br>
+                       Subtract the growth: ${currentPattern.f1Count} - (${currentPattern.m} × ${currentPattern.f1Num}) = <b>b</b>.`;
+        }
     } else if (currentStep === 2) {
         message = `Plug Figure ${currentPattern.step2Num} into your rule: (${currentPattern.m} × ${currentPattern.step2Num}) + ${currentPattern.b}`;
     } else {
-        message = `<strong>Reminder:</strong> Put the figure number into the x of your rule (y = ${currentPattern.m}x + ${currentPattern.b}) and draw that many tiles.`;
+        message = `<strong>Reminder:</strong> Apply your rule (y = ${currentPattern.m}x + ${currentPattern.b}) using Figure ${currentPattern.step3Num} as 'x' to see how many tiles to draw.`;
     }
     hintBox.innerHTML = message;
 };
     
 window.checkFigureAns = async function() {
     let isCorrect = false;
+    let wrongM = false;
+    let wrongB = false;
+
     const feedback = document.getElementById('feedback-box');
     const hintBox = document.getElementById('hint-display');
 
     if (currentStep === 1) {
         const uM = parseInt(document.getElementById('input-m').value);
         const uB = parseInt(document.getElementById('input-b').value);
-        isCorrect = (uM === currentPattern.m && uB === currentPattern.b);
+        
+        wrongM = (uM !== currentPattern.m);
+        wrongB = (uB !== currentPattern.b);
+        isCorrect = (!wrongM && !wrongB);
     } else if (currentStep === 2) {
         const uAns = parseInt(document.getElementById('input-step2').value);
         isCorrect = (uAns === currentPattern.step2Ans);
@@ -244,13 +251,13 @@ window.checkFigureAns = async function() {
             feedback.style.color = "#dc2626";
             feedback.innerText = "Not quite! Try again.";
         }
-        showFigureHint();
+        // Trigger context-aware hint
+        showFigureHint(wrongM, wrongB);
     }
 };
 
 async function finishFigureGame() {
     window.isCurrentQActive = false;
-
     document.getElementById('q-content').innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:400px; text-align:center;">
             <div style="font-size:60px; margin-bottom:10px;">🟦</div>
