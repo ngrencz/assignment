@@ -1,10 +1,12 @@
 /**
  * skill_complexshapes.js
- * - 7th/8th Grade Deductive Reasoning Version.
- * - FIXED: All slant lengths and internal heights/radii are explicitly labeled.
- * - FIXED: Labels are offset with background "halos" to prevent overlapping.
- * - LOGIC: Deductive reasoning required for horizontal/vertical rectangle edges.
- * - VERSION: 1.7 - Guaranteed Labels & Logging
+ * - Grade Level: 7th/8th (Deductive Reasoning)
+ * - VERSION: 1.9
+ * - LOGIC: 
+ * 1. Bottom of rectangle hidden (must deduce from top).
+ * 2. Semicircle Arc hidden (must calculate using r and 3.14).
+ * 3. All Slants/Diagonals explicitly labeled.
+ * 4. Internal Heights/Radii explicitly labeled.
  */
 
 var complexData = {
@@ -15,9 +17,9 @@ var complexData = {
 };
 
 window.initComplexShapesGame = async function() {
-    // Log reference kept for version tracking
+    // Log reference for version tracking
     if (typeof log === 'function') {
-        log("🚀 Complex Shapes: v1.7 - Full Label Logic & Deduction Active");
+        log("🚀 Complex Shapes: v1.9 - Explicit 3.14 Hint Mode");
     }
 
     if (!document.getElementById('q-content')) return;
@@ -54,7 +56,7 @@ function generateComplexProblem() {
     complexData.unit = units[Math.floor(Math.random() * units.length)];
     complexData.components = [];
     
-    // 1. Foundation Rectangle (Deductive Base)
+    // 1. Foundation Rectangle
     let baseW = Math.floor(Math.random() * 30) + 50;
     let baseH = Math.floor(Math.random() * 30) + 40;
     
@@ -66,7 +68,7 @@ function generateComplexProblem() {
         hintP: `Deduction: If the top is ${baseW}, the bottom must also be ${baseW}.`
     });
 
-    // 2. Add Attachment with explicit dimensions
+    // 2. Add Attachment
     let typePool = ['triangle', 'semicircle', 'trapezoid'];
     let type = typePool[Math.floor(Math.random() * typePool.length)];
     let attachX = 80 + baseW;
@@ -79,7 +81,7 @@ function generateComplexProblem() {
             type: 'triangle', base: baseH, height: triH, x: attachX, y: 100,
             slantLabel: slantValue,
             area: 0.5 * baseH * triH,
-            hintA: `Triangle Area = ½ × base (${baseH}) × height (${triH})`,
+            hintA: `Triangle Area = ½ × base × height`,
             hintP: `The two exterior slants are both ${slantValue} ${complexData.unit}.`
         });
         complexData.totalArea = (baseW * baseH) + (0.5 * baseH * triH);
@@ -87,17 +89,18 @@ function generateComplexProblem() {
 
     } else if (type === 'semicircle') {
         let r = baseH / 2;
-        let arcValue = (Math.PI * r).toFixed(1);
+        // Logic: Use 3.14 specifically so student answers match perfectly
+        let arcValue = 3.14 * r; 
         
         complexData.components.push({
             type: 'semicircle', r: r, x: attachX, y: 100 + r,
-            arcLabel: arcValue,
-            area: (Math.PI * Math.pow(r, 2)) / 2,
-            hintA: `Semicircle Area = (π × r²) / 2`,
-            hintP: `The curved boundary is ${arcValue} ${complexData.unit}.`
+            // No arcLabel provided, it is hidden
+            area: (3.14 * Math.pow(r, 2)) / 2,
+            hintA: `Semicircle Area = (3.14 × r²) / 2`,
+            hintP: `Boundary = Half of Circumference (3.14 × ${r}).`
         });
-        complexData.totalArea = (baseW * baseH) + ((Math.PI * Math.pow(r, 2)) / 2);
-        complexData.totalPerimeter = (baseW * 2) + baseH + parseFloat(arcValue);
+        complexData.totalArea = (baseW * baseH) + ((3.14 * Math.pow(r, 2)) / 2);
+        complexData.totalPerimeter = (baseW * 2) + baseH + arcValue;
 
     } else if (type === 'trapezoid') {
         let topB = Math.floor(baseH * 0.6);
@@ -181,6 +184,7 @@ function drawComplex() {
     function drawLabel(text, x, y, color = "#1e293b", isInternal = false) {
         ctx.fillStyle = "rgba(255,255,255,0.9)";
         let w = ctx.measureText(text).width;
+        // Background rectangle "halo" to prevent overlap
         ctx.fillRect(x - w/2 - 4, y - 11, w + 8, 15); 
         ctx.fillStyle = isInternal ? "#64748b" : color;
         ctx.textAlign = "center";
@@ -193,23 +197,27 @@ function drawComplex() {
         if (p.type === 'rectangle') {
             ctx.rect(p.x, p.y, p.w, p.h);
             ctx.fill(); ctx.stroke();
-            drawLabel(`${p.w} ${u}`, p.x + p.w/2, p.y - 12); 
-            drawLabel(`${p.h} ${u}`, p.x - 45, p.y + p.h/2 + 5); 
+            // Rectangle Labels
+            drawLabel(`${p.w} ${u}`, p.x + p.w/2, p.y - 12); // Top
+            drawLabel(`${p.h} ${u}`, p.x - 45, p.y + p.h/2 + 5); // Left
         } else if (p.type === 'triangle') {
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p.x + p.height, p.y + p.base/2);
             ctx.lineTo(p.x, p.y + p.base);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
+            // Slant Labels (Explicit)
             drawLabel(`${p.slantLabel} ${u}`, p.x + p.height/2 + 45, p.y + p.base/4 - 10); 
             drawLabel(`${p.slantLabel} ${u}`, p.x + p.height/2 + 45, p.y + (p.base*0.75) + 20);
+            // Height Label (Internal)
             drawLabel(`h: ${p.height} ${u}`, p.x + 35, p.y + p.base/2 + 5, "#64748b", true);
         } else if (p.type === 'semicircle') {
             ctx.arc(p.x, p.y, p.r, -Math.PI/2, Math.PI/2);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
-            drawLabel(`${p.arcLabel} ${u}`, p.x + p.r + 45, p.y + 5);
+            // Radius Label (Internal, Explicit)
             drawLabel(`r: ${p.r} ${u}`, p.x + p.r/2, p.y + 5, "#64748b", true);
+            // Arc Label is deliberately omitted
         } else if (p.type === 'trapezoid') {
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p.x + p.h, p.y);
@@ -217,12 +225,14 @@ function drawComplex() {
             ctx.lineTo(p.x, p.y + p.b1);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
-            drawLabel(`${p.h} ${u}`, p.x + p.h/2, p.y - 12); 
-            drawLabel(`${p.b2} ${u}`, p.x + p.h + 40, p.y + p.b2/2 + 5); 
-            drawLabel(`${p.slantLabel} ${u}`, p.x + p.h/2 - 30, p.y + p.b1 + 25);
+            // Trapezoid Labels
+            drawLabel(`${p.h} ${u}`, p.x + p.h/2, p.y - 12); // Top
+            drawLabel(`${p.b2} ${u}`, p.x + p.h + 40, p.y + p.b2/2 + 5); // Right
+            drawLabel(`${p.slantLabel} ${u}`, p.x + p.h/2 - 30, p.y + p.b1 + 25); // Slant (Explicit)
         }
     });
 
+    // Click handler for Hints
     canvas.onclick = (e) => {
         const rect = canvas.getBoundingClientRect();
         const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -251,8 +261,8 @@ window.checkComplexWin = async function() {
         return;
     }
 
-    const areaOK = (Math.abs(aVal - complexData.totalArea) < 2.5) && (aUnit === 'square');
-    const perimOK = (Math.abs(pVal - complexData.totalPerimeter) < 2.5) && (pUnit === 'linear');
+    const areaOK = (Math.abs(aVal - complexData.totalArea) < 3.0) && (aUnit === 'square');
+    const perimOK = (Math.abs(pVal - complexData.totalPerimeter) < 3.0) && (pUnit === 'linear');
 
     if (areaOK && perimOK) {
         let newVal = Math.min(10, (window.userMastery.ComplexShapes || 0) + 1);
@@ -261,10 +271,10 @@ window.checkComplexWin = async function() {
             const h = sessionStorage.getItem('target_hour') || "00";
             await window.supabaseClient.from('assignment').update({ ComplexShapes: newVal }).eq('userName', window.currentUser).eq('hour', h);
         }
-        showFlash("✅ Correct! Mastery updated.", "success");
+        showFlash("✅ Correct! Mastered.", "success");
         setTimeout(() => finishComplex(), 1500);
     } else {
-        let msg = !areaOK ? "Check Area calculation or units." : "Check Perimeter calculation or units.";
+        let msg = !areaOK ? "Check Area calculation." : "Check Perimeter calculation.";
         if (aUnit !== 'square' && !areaOK) msg = "Area requires square units!";
         if (pUnit !== 'linear' && !perimOK) msg = "Perimeter requires linear units!";
         showFlash(msg, "error");
