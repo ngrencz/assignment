@@ -1,5 +1,5 @@
 /**
- * skill_boxplot.js - Full Integrated Version
+ * skill_boxplot.js - Full Integrated Version (RESTORED LABELS)
  * Handles: Median, Mean, Range, Q1, and IQR
  */
 
@@ -21,9 +21,7 @@
         boxPlotStep = 0;
         sessionCorrectFirstTry = 0;
 
-        // Fetch sub-skill mastery
         try {
-            // Priority: target_hour from session, fallback to "00"
             const currentHour = sessionStorage.getItem('target_hour') || "00";
             
             const { data } = await window.supabaseClient
@@ -35,29 +33,23 @@
             
             window.userMastery = data || {};
         } catch (e) {
-            console.error("Mastery Fetch Error:", e);
             window.userMastery = {};
         }
 
         generateSkewedDataset();
 
-        // 3. Question Pool
-        // Mean is now included in the pool. 
-        // Since we slice(0, 3), it will show up randomly alongside others.
         const pool = [
             { q: "What is the Median?", a: currentBoxData.median, hint: "Order the numbers first! Find the middle one.", col: "bp_median" },
-            { q: "What is the Mean? (Round to 1 decimal)", a: currentBoxData.mean, hint: "Sum of all numbers ÷ 11. Round to 1 decimal place.", col: "bp_mean" },
+            { q: "What is the Mean? (Round to 1 decimal)", a: currentBoxData.mean, hint: "Sum ÷ 11. Round to 1 decimal place.", col: "bp_mean" },
             { q: "What is the Range?", a: currentBoxData.max - currentBoxData.min, hint: "Highest Number - Lowest Number", col: "bp_range" },
-            { q: "What is Q1 (Lower Quartile)?", a: currentBoxData.q1, hint: "The median of the lower half (the 3rd number in order).", col: "bp_quartiles" },
+            { q: "What is Q1 (Lower Quartile)?", a: currentBoxData.q1, hint: "The median of the lower half.", col: "bp_quartiles" },
             { q: "What is the IQR?", a: currentBoxData.q3 - currentBoxData.q1, hint: "Q3 - Q1 (The width of the box).", col: "bp_iqr" }
         ];
 
-        // Pick 3 random questions from the pool
         boxPlotSessionQuestions = pool.sort(() => 0.5 - Math.random()).slice(0, 3);
         renderBoxUI();
     };
 
-    // --- Data Generator ---
     function generateSkewedDataset() {
         let attempts = 0;
         let valid = false;
@@ -80,8 +72,6 @@
             const median = arr[5]; 
             const q3 = arr[8];
             const max = arr[10];
-
-            // Calculate Mean for the new sub-skill
             const sum = arr.reduce((a, b) => a + b, 0);
             const mean = Math.round((sum / 11) * 10) / 10;
 
@@ -99,7 +89,6 @@
         const qContent = document.getElementById('q-content');
         if (!qContent) return;
 
-        // Ensure q-title exists (Safety Proxy in test.html handles this if missing)
         const titleElem = document.getElementById('q-title');
         if (titleElem) titleElem.innerText = `Box Plot Mastery (${boxPlotStep + 1}/3)`;
         
@@ -117,13 +106,13 @@
                 <canvas id="boxCanvas" width="400" height="120" style="max-width:100%;"></canvas>
             </div>
             
-            <div class="card" style="background: white; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <div class="card">
                 <p style="font-size: 1.1rem; margin-bottom: 15px;"><strong>Question:</strong> ${current.q}</p>
                 <div style="display:flex; gap:10px; align-items:center; justify-content:center;">
-                    <input type="number" id="box-ans" step="0.1" class="math-input" placeholder="?" style="width: 120px; padding: 12px; font-size: 1.1rem; border: 2px solid #cbd5e1; border-radius: 6px;">
-                    <button onclick="checkStep()" class="primary-btn" style="background: #6366f1; color: white; padding: 12px 24px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold;">Submit</button>
+                    <input type="number" id="box-ans" step="0.1" class="math-input" placeholder="?" style="width: 100px; padding: 10px;">
+                    <button onclick="checkStep()" class="primary-btn">Submit</button>
                 </div>
-                <div id="feedback-box" style="margin-top: 15px; display: none; padding: 10px; border-radius: 6px; font-weight: bold;"></div>
+                <div id="feedback-box" style="margin-top: 15px; display: none; padding: 10px; border-radius: 6px;"></div>
             </div>
         `;
         setTimeout(drawBoxPlot, 50); 
@@ -171,6 +160,15 @@
             max: padding + currentBoxData.max * scale
         };
 
+        // --- RESTORED: Draw Stats Text Labels ---
+        ctx.fillStyle = "#1e293b";
+        ctx.font = "bold 12px Arial";
+        ctx.fillText(currentBoxData.min, pts.min, y - 35);
+        ctx.fillText(currentBoxData.q1, pts.q1, y - 35);
+        ctx.fillText(currentBoxData.median, pts.med, y - 35);
+        ctx.fillText(currentBoxData.q3, pts.q3, y - 35);
+        ctx.fillText(currentBoxData.max, pts.max, y - 35);
+
         // Whiskers
         ctx.strokeStyle = "#1e293b";
         ctx.lineWidth = 2;
@@ -207,21 +205,17 @@
         if (isNaN(userAns)) return;
         feedback.style.display = "block";
 
-        // Correct Answer Check (Decimal Safe)
         if (Math.abs(userAns - current.a) < 0.11) {
-            feedback.style.backgroundColor = "#dcfce7";
-            feedback.style.color = "#166534";
+            feedback.className = "correct";
             feedback.innerText = "✅ Correct!";
 
             if (boxErrorCount === 0) {
                 sessionCorrectFirstTry++;
             }
 
-            // Update SUB-SKILL
             let subAdjustment = (boxErrorCount === 0) ? 1 : 0; 
             const updateObj = {};
-            const currentSubScore = window.userMastery?.[current.col] || 0;
-            updateObj[current.col] = Math.min(10, currentSubScore + subAdjustment);
+            updateObj[current.col] = Math.min(10, (window.userMastery?.[current.col] || 0) + subAdjustment);
             
             const currentHour = sessionStorage.getItem('target_hour') || "00";
 
@@ -233,7 +227,6 @@
                     .eq('hour', currentHour);
             }
 
-            // Update Local State
             if (!window.userMastery) window.userMastery = {};
             window.userMastery[current.col] = updateObj[current.col];
 
@@ -247,8 +240,7 @@
             }
         } else {
             boxErrorCount++;
-            feedback.style.backgroundColor = "#fee2e2";
-            feedback.style.color = "#991b1b";
+            feedback.className = "incorrect";
             feedback.innerText = `❌ Not quite. Hint: ${current.hint}`;
         }
     };
@@ -259,11 +251,8 @@
         if(feedback) feedback.innerText = "✅ Box Plot Set Complete!";
 
         let mainAdjustment = 0;
-        if (sessionCorrectFirstTry === 3) {
-            mainAdjustment = 1;
-        } else if (sessionCorrectFirstTry <= 1) {
-            mainAdjustment = -1;
-        }
+        if (sessionCorrectFirstTry === 3) mainAdjustment = 1;
+        else if (sessionCorrectFirstTry <= 1) mainAdjustment = -1;
 
         if (mainAdjustment !== 0) {
             const currentMain = window.userMastery?.['BoxPlot'] || 0;
@@ -277,14 +266,11 @@
                     .eq('userName', window.currentUser)
                     .eq('hour', currentHour);
             }
-            
             if (window.userMastery) window.userMastery['BoxPlot'] = newMain;
         }
 
         setTimeout(() => {
             if(typeof window.loadNextQuestion === 'function') window.loadNextQuestion();
-            else document.getElementById('q-content').innerHTML = "<h2>Session Complete</h2><p>Refresh to try again.</p>";
         }, 1500);
     }
-
 })();
