@@ -1,12 +1,10 @@
 /**
  * skill_complexshapes.js
  * - Grade Level: 7th/8th
- * - VERSION: 2.0 (Large Shapes, Centered, Dashed Heights)
- * - LOGIC: 
- * 1. Shapes are ~2.5x larger.
- * 2. Auto-centering logic prevents off-screen drawing.
- * 3. Dashed lines added for Triangles and Trapezoids (Height).
- * 4. Trapezoids are now Isosceles (two slanted sides).
+ * - VERSION: 2.1
+ * - FIXED: Perimeter logic bug (left wall was missing for Tri/Trap).
+ * - FIXED: Number inputs now accept commas (e.g., 1,234.5).
+ * - FIXED: Hints no longer give away calculated numbers or redundant side lengths.
  */
 
 var complexData = {
@@ -18,7 +16,7 @@ var complexData = {
 
 window.initComplexShapesGame = async function() {
     if (typeof log === 'function') {
-        log("🚀 Complex Shapes: v2.0 - Large Mode & Dashed Lines");
+        log("🚀 Complex Shapes: v2.1 - Commas Allowed & Logic Fixed");
     }
 
     if (!document.getElementById('q-content')) return;
@@ -55,43 +53,38 @@ function generateComplexProblem() {
     complexData.unit = units[Math.floor(Math.random() * units.length)];
     complexData.components = [];
     
-    // 1. SCALED UP DIMENSIONS
-    // Rectangle width 140-200 (was 50-80)
-    // Rectangle height 120-180 (was 40-70)
     let baseW = Math.floor(Math.random() * 60) + 140;
     let baseH = Math.floor(Math.random() * 60) + 120;
-    
-    // We will determine X and Y later based on total width to center it
-    
-    // 2. Select Attachment Type
-    let typePool = ['triangle', 'semicircle', 'trapezoid'];
-    let type = typePool[Math.floor(Math.random() * typePool.length)];
     
     // Component 1: Rectangle data
     let rectComp = {
         type: 'rectangle',
         w: baseW, h: baseH, 
         area: baseW * baseH,
-        hintA: `Rectangle Area = ${baseW} × ${baseH}`,
-        hintP: `Deduction: Top is ${baseW}, so bottom is also ${baseW}.`
+        hintA: `Area = base × height`,
+        hintP: `Remember: The bottom edge matches the top edge.`
     };
 
     let attachComp = {};
     let totalWidth = baseW;
 
+    let typePool = ['triangle', 'semicircle', 'trapezoid'];
+    let type = typePool[Math.floor(Math.random() * typePool.length)];
+
     if (type === 'triangle') {
-        let triH = Math.floor(Math.random() * 40) + 60; // Larger triangle height
+        let triH = Math.floor(Math.random() * 40) + 60; 
         let slantValue = Math.sqrt(Math.pow(baseH/2, 2) + Math.pow(triH, 2)).toFixed(1);
         
         attachComp = {
             type: 'triangle', base: baseH, height: triH,
             slantLabel: slantValue,
             area: 0.5 * baseH * triH,
-            hintA: `Triangle Area = ½ × base × height`,
-            hintP: `The two exterior slants are both ${slantValue}.`
+            hintA: `Area = ½ × base × height`,
+            hintP: `Perimeter: Only add up the outer boundaries.`
         };
         complexData.totalArea = (baseW * baseH) + (0.5 * baseH * triH);
-        complexData.totalPerimeter = (baseW * 2) + (parseFloat(slantValue) * 2);
+        // FIXED: Added baseH (left wall) to perimeter
+        complexData.totalPerimeter = (baseW * 2) + baseH + (parseFloat(slantValue) * 2);
         totalWidth += triH;
 
     } else if (type === 'semicircle') {
@@ -101,45 +94,40 @@ function generateComplexProblem() {
         attachComp = {
             type: 'semicircle', r: r,
             area: (3.14 * Math.pow(r, 2)) / 2,
-            hintA: `Semicircle Area = (3.14 × r²) / 2`,
-            hintP: `Boundary = Half of Circumference (3.14 × ${r}).`
+            hintA: `Area = (3.14 × r²) / 2`,
+            hintP: `Curved Boundary = 3.14 × r`
         };
         complexData.totalArea = (baseW * baseH) + ((3.14 * Math.pow(r, 2)) / 2);
         complexData.totalPerimeter = (baseW * 2) + baseH + arcValue;
         totalWidth += r;
 
     } else if (type === 'trapezoid') {
-        // Isosceles Trapezoid logic
-        let topB = Math.floor(baseH * 0.5); // Smaller base
-        let trapW = Math.floor(Math.random() * 40) + 50; // Width of trap
-        let diff = (baseH - topB) / 2; // Vertical diff for one side
+        let topB = Math.floor(baseH * 0.5); 
+        let trapW = Math.floor(Math.random() * 40) + 50; 
+        let diff = (baseH - topB) / 2; 
         let slantValue = Math.sqrt(Math.pow(trapW, 2) + Math.pow(diff, 2)).toFixed(1);
 
         attachComp = {
             type: 'trapezoid', b1: baseH, b2: topB, h: trapW,
             slantLabel: slantValue,
             area: 0.5 * (baseH + topB) * trapW,
-            hintA: `Trapezoid Area = ½(base1 + base2) × height`,
-            hintP: `Exterior sides: Top slant (${slantValue}), Right vertical (${topB}), Bottom slant (${slantValue}).`
+            hintA: `Area = ½ × (base 1 + base 2) × height`,
+            hintP: `Perimeter: Only add up the outer boundaries.`
         };
         complexData.totalArea = (baseW * baseH) + (0.5 * (baseH + topB) * trapW);
-        complexData.totalPerimeter = (baseW * 2) + topB + (parseFloat(slantValue) * 2);
+        // FIXED: Added baseH (left wall) to perimeter
+        complexData.totalPerimeter = (baseW * 2) + baseH + topB + (parseFloat(slantValue) * 2);
         totalWidth += trapW;
     }
 
-    // 3. CENTERING LOGIC
     const canvasW = 550;
     const canvasH = 300;
     let startX = (canvasW - totalWidth) / 2;
     let startY = (canvasH - baseH) / 2;
 
-    // Apply coordinates
     rectComp.x = startX;
     rectComp.y = startY;
-    
     attachComp.x = startX + baseW;
-    
-    // For Triangle/Trap, Y is same as rect top. For semicircle, Y center is adjusted in draw
     attachComp.y = startY; 
 
     complexData.components.push(rectComp);
@@ -150,6 +138,7 @@ function renderComplexUI() {
     const qContent = document.getElementById('q-content');
     if (!qContent) return;
 
+    // Notice type="text" on inputs to allow commas
     qContent.innerHTML = `
         <div style="max-width:650px; margin:0 auto; font-family: sans-serif;">
             <div style="text-align:center; margin-bottom:8px; color:#64748b; font-weight:bold; font-size:14px;">
@@ -165,7 +154,7 @@ function renderComplexUI() {
                 <div style="background:white; padding:10px; border-radius:8px; border-left:4px solid #3b82f6; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
                     <label class="comp-label" style="color:#3b82f6;">TOTAL AREA</label>
                     <div style="display:flex; gap:5px; margin-top:4px;">
-                        <input type="number" id="ans-area-val" step="0.1" class="comp-input" placeholder="0.0">
+                        <input type="text" id="ans-area-val" class="comp-input" placeholder="0.0">
                         <select id="ans-area-unit" class="comp-select">
                             <option value="">Unit</option>
                             <option value="linear">${complexData.unit}</option>
@@ -177,7 +166,7 @@ function renderComplexUI() {
                 <div style="background:white; padding:10px; border-radius:8px; border-left:4px solid #10b981; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
                     <label class="comp-label" style="color:#10b981;">TOTAL PERIMETER</label>
                     <div style="display:flex; gap:5px; margin-top:4px;">
-                        <input type="number" id="ans-perim-val" step="0.1" class="comp-input" placeholder="0.0">
+                        <input type="text" id="ans-perim-val" class="comp-input" placeholder="0.0">
                         <select id="ans-perim-unit" class="comp-select">
                             <option value="">Unit</option>
                             <option value="linear">${complexData.unit}</option>
@@ -205,14 +194,13 @@ function drawComplex() {
     ctx.clearRect(0, 0, 550, 300);
     ctx.lineWidth = 3;
     ctx.strokeStyle = "#334155";
-    ctx.font = "bold 15px Arial"; // Larger font for readability
 
     function drawLabel(text, x, y, color = "#1e293b", isInternal = false) {
         ctx.save();
         ctx.font = "bold 14px Arial";
         ctx.fillStyle = "rgba(255,255,255,0.85)";
         let w = ctx.measureText(text).width;
-        ctx.fillRect(x - w/2 - 5, y - 12, w + 10, 18); // Larger Halo
+        ctx.fillRect(x - w/2 - 5, y - 12, w + 10, 18); 
         ctx.fillStyle = isInternal ? "#64748b" : color;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -220,11 +208,10 @@ function drawComplex() {
         ctx.restore();
     }
 
-    // Helper for dashed lines
     function drawDashedLine(x1, y1, x2, y2) {
         ctx.save();
         ctx.beginPath();
-        ctx.setLineDash([6, 6]); // The Dash Pattern
+        ctx.setLineDash([6, 6]); 
         ctx.strokeStyle = "#94a3b8";
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
@@ -236,85 +223,66 @@ function drawComplex() {
         ctx.fillStyle = "#f1f5f9";
         ctx.beginPath();
         
-        // --- RECTANGLE ---
         if (p.type === 'rectangle') {
             ctx.rect(p.x, p.y, p.w, p.h);
             ctx.fill(); ctx.stroke();
-            
-            drawLabel(`${p.w} ${u}`, p.x + p.w/2, p.y - 15); // Top
-            drawLabel(`${p.h} ${u}`, p.x - 45, p.y + p.h/2); // Left
+            drawLabel(`${p.w} ${u}`, p.x + p.w/2, p.y - 15); 
+            drawLabel(`${p.h} ${u}`, p.x - 45, p.y + p.h/2); 
         } 
-        
-        // --- TRIANGLE (Isosceles pointing right) ---
         else if (p.type === 'triangle') {
             ctx.moveTo(p.x, p.y);
-            ctx.lineTo(p.x + p.height, p.y + p.base/2); // Tip
-            ctx.lineTo(p.x, p.y + p.base); // Bottom left
+            ctx.lineTo(p.x + p.height, p.y + p.base/2); 
+            ctx.lineTo(p.x, p.y + p.base); 
             ctx.closePath();
             ctx.fill(); ctx.stroke();
             
-            // Dashed Height Line (Middle)
             drawDashedLine(p.x, p.y + p.base/2, p.x + p.height, p.y + p.base/2);
 
-            // Labels
-            drawLabel(`${p.slantLabel}`, p.x + p.height/2 + 10, p.y + p.base*0.25 - 20); // Top Slant
-            drawLabel(`${p.slantLabel}`, p.x + p.height/2 + 10, p.y + p.base*0.75 + 20); // Bot Slant
+            drawLabel(`${p.slantLabel}`, p.x + p.height/2 + 10, p.y + p.base*0.25 - 20); 
+            drawLabel(`${p.slantLabel}`, p.x + p.height/2 + 10, p.y + p.base*0.75 + 20); 
             drawLabel(`h: ${p.height} ${u}`, p.x + p.height/2, p.y + p.base/2 - 15, "#64748b", true);
         } 
-        
-        // --- SEMICIRCLE ---
         else if (p.type === 'semicircle') {
-            let cy = p.y + p.r; // Center Y
+            let cy = p.y + p.r; 
             ctx.arc(p.x, cy, p.r, -Math.PI/2, Math.PI/2);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
             
-            // Dashed Radius Line
             drawDashedLine(p.x, cy, p.x + p.r, cy);
-            
             drawLabel(`r: ${p.r} ${u}`, p.x + p.r/2, cy - 15, "#64748b", true);
         } 
-        
-        // --- TRAPEZOID (Isosceles) ---
         else if (p.type === 'trapezoid') {
-            // Calculate vertical offset to center the smaller base
             let vOffset = (p.b1 - p.b2) / 2; 
             
-            ctx.moveTo(p.x, p.y); // Top-left (at shared wall)
-            ctx.lineTo(p.x + p.h, p.y + vOffset); // Top-right
-            ctx.lineTo(p.x + p.h, p.y + vOffset + p.b2); // Bottom-right
-            ctx.lineTo(p.x, p.y + p.b1); // Bottom-left (at shared wall)
+            ctx.moveTo(p.x, p.y); 
+            ctx.lineTo(p.x + p.h, p.y + vOffset); 
+            ctx.lineTo(p.x + p.h, p.y + vOffset + p.b2); 
+            ctx.lineTo(p.x, p.y + p.b1); 
             ctx.closePath();
             ctx.fill(); ctx.stroke();
             
-            // Dashed Height Line (Middle)
             let midY = p.y + p.b1/2;
             drawDashedLine(p.x, midY, p.x + p.h, midY);
 
-            // Labels
-            drawLabel(`${p.b2} ${u}`, p.x + p.h + 45, midY); // Right Vertical Base
-            drawLabel(`${p.slantLabel}`, p.x + p.h/2, p.y - 15); // Top Slant (approximated location)
-            drawLabel(`${p.slantLabel}`, p.x + p.h/2, p.y + p.b1 + 25); // Bottom Slant
+            drawLabel(`${p.b2} ${u}`, p.x + p.h + 45, midY); 
+            drawLabel(`${p.slantLabel}`, p.x + p.h/2, p.y - 15); 
+            drawLabel(`${p.slantLabel}`, p.x + p.h/2, p.y + p.b1 + 25); 
             drawLabel(`h: ${p.h} ${u}`, p.x + p.h/2, midY - 15, "#64748b", true);
         }
     });
 
-    // Click handler for Hints
     canvas.onclick = (e) => {
         const rect = canvas.getBoundingClientRect();
         const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
         const my = (e.clientY - rect.top) * (canvas.height / rect.height);
         const bubble = document.getElementById('hint-bubble');
         
-        // Check collision (broad check based on centered area)
         if (mx > complexData.components[0].x && mx < complexData.components[0].x + 400 && 
             my > complexData.components[0].y && my < complexData.components[0].y + 300) {
             
-            // Find which part was clicked
             let part = complexData.components.find(p => {
-               // Simple bounding box check
                if(p.type === 'rectangle') return mx >= p.x && mx <= p.x + p.w;
-               return mx > p.x; // Attachment is always to the right
+               return mx > p.x; 
             });
             
             if (part) {
@@ -329,9 +297,13 @@ function drawComplex() {
 }
 
 window.checkComplexWin = async function() {
-    const aVal = parseFloat(document.getElementById('ans-area-val').value);
+    // Strip commas from input before parsing
+    const rawA = document.getElementById('ans-area-val').value.replace(/,/g, '');
+    const rawP = document.getElementById('ans-perim-val').value.replace(/,/g, '');
+    
+    const aVal = parseFloat(rawA);
     const aUnit = document.getElementById('ans-area-unit').value;
-    const pVal = parseFloat(document.getElementById('ans-perim-val').value);
+    const pVal = parseFloat(rawP);
     const pUnit = document.getElementById('ans-perim-unit').value;
 
     if (isNaN(aVal) || isNaN(pVal)) {
@@ -339,7 +311,6 @@ window.checkComplexWin = async function() {
         return;
     }
 
-    // Slightly wider tolerance for 3.14 calc
     const areaOK = (Math.abs(aVal - complexData.totalArea) < 3.0) && (aUnit === 'square');
     const perimOK = (Math.abs(pVal - complexData.totalPerimeter) < 3.0) && (pUnit === 'linear');
 
