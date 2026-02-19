@@ -4,6 +4,7 @@
  * - MODIFICATION: Tightened bottom UI container (removed excess padding/gaps).
  * - MODIFICATION: Refined Scale Factors to prevent extreme size differences.
  * - MODIFICATION: Labels forced outside via vector normal.
+ * - BUGFIX: Ensured corresponding side for 'y' always renders on the scaled shape.
  */
 
 var similarityData = {
@@ -180,12 +181,13 @@ function drawSimilarShapes() {
             let displayVal = val;
             ctx.fillStyle = "#1e293b";
 
+            // BUGFIX APPLIED HERE:
             if (!isScaled) {
                 if (i === idx.y) { displayVal = "y"; ctx.fillStyle = "#ef4444"; }
-                else if (i !== idx.known && i !== 1) return; 
+                else if (i !== idx.known && i !== idx.x) return; 
             } else {
                 if (i === idx.x) { displayVal = "x"; ctx.fillStyle = "#2563eb"; }
-                else if (i !== idx.known) return; 
+                else if (i !== idx.known && i !== idx.y) return; 
             }
 
             ctx.textAlign = "center";
