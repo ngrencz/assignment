@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="style.css">
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <script src="skill_transformation.js"></script>
     <script src="skill_linearsystem.js"></script>
@@ -17,47 +17,7 @@
     <script src="skill_diamondmath.js"></script>
     <script src="skill_linear.js"></script>
 
-    <style>
-        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: #f1f5f9; overflow: hidden; }
-        .header-bar { height: 40px; background: #fff; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; z-index: 10; }
         
-        /* THE TWO COLUMN LAYOUT */
-        .master-grid { display: grid; grid-template-columns: 420px 1fr; height: calc(100vh - 40px); }
-        
-        /* COLUMN 1: SIDEBAR */
-        .sidebar { background: #f8fafc; border-right: 1px solid #cbd5e1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-        
-        /* COLUMN 2: MAIN STAGE (Log on top, Game below) */
-        .main-stage { display: flex; flex-direction: column; background: #fff; overflow: hidden; }
-        
-        .log-container { height: 200px; background: #1a1a1a; border-bottom: 2px solid #333; padding: 10px; overflow: hidden; display: flex; flex-direction: column; }
-        .log-box { flex-grow: 1; color: #4CBB17; font-family: monospace; font-size: 11px; overflow-y: auto; }
-        
-        .game-area { flex-grow: 1; padding: 30px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
-
-        /* Sidebar UI Elements */
-        .card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .section-tag { color: #0ea5e9; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; display: block; border-bottom: 1px solid #f1f5f9; }
-        input[type="range"] { width: 100%; accent-color: #4CBB17; margin: 5px 0; cursor: pointer; }
-        button { cursor: pointer; font-weight: bold; padding: 10px; border-radius: 6px; border: none; background: #6366f1; color: white; width: 100%; margin-top: 5px; transition: opacity 0.2s; }
-        button:hover { opacity: 0.9; }
-        select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; }
-        .slider-label { 
-    display: flex; 
-    justify-content: space-between; 
-    font-size: 11px; 
-    font-weight: 600;
-    white-space: nowrap; /* Prevents "Complex Shapes" from breaking into two lines */
-    align-items: center;
-    margin-bottom: 2px;
-}
-
-.slider-label span {
-    margin-left: 10px;
-    color: #0ea5e9; /* Makes the value stand out */
-}
-        details summary { cursor: pointer; font-size: 12px; font-weight: bold; margin: 5px 0; color: #444; }
-    </style>
 </head>
 <body>
 
