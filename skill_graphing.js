@@ -5,7 +5,7 @@
  * - Connects dots A->B->C->D automatically as found.
  * - Fills shape when complete.
  * - 4 Rounds.
- * - UPDATED: Numbered axes added to the grid.
+ * - UPDATED: Numbered axes, initialization log, and clear progress tracker.
  */
 
 var graphData = {
@@ -19,6 +19,11 @@ var graphRound = 1;
 var totalGraphRounds = 4;
 
 window.initGraphingGame = async function() {
+    // Added Log Entry
+    if (typeof log === 'function') {
+        log(`📉 Graphing Module Initialized - Round ${graphRound} of ${totalGraphRounds}`);
+    }
+
     if (!document.getElementById('q-content')) return;
 
     window.isCurrentQActive = true;
@@ -35,7 +40,7 @@ window.initGraphingGame = async function() {
                 .from('assignment')
                 .select('Graphing')
                 .eq('userName', window.currentUser)
-                .eq('hour', currentHour) // Added hour constraint
+                .eq('hour', currentHour)
                 .maybeSingle();
             
             window.userMastery.Graphing = data?.Graphing || 0;
@@ -97,7 +102,8 @@ function renderGraphingUI() {
          </div>`
     ).join('');
 
-    document.getElementById('q-title').innerText = `Graph the Shape (Round ${graphRound}/${totalGraphRounds})`;
+    // Explicit Progress Tracker in Title
+    document.getElementById('q-title').innerText = `Graph the Shape (Problem ${graphRound} of ${totalGraphRounds})`;
 
     qContent.innerHTML = `
         <div style="display: flex; gap: 30px; flex-wrap: wrap; justify-content:center;">
@@ -161,16 +167,10 @@ function drawGrid() {
     ctx.textBaseline = "middle";
 
     for (let i = -graphData.range; i <= graphData.range; i++) {
-        if (i === 0) continue; // Skip the origin (0,0) to prevent center clutter
+        if (i === 0) continue; 
         
-        // Draw every 2 units to prevent text overlapping
         if (i % 2 === 0) {
-            // X-axis text (placed slightly below the line)
             ctx.fillText(i, center + (i * scale), center + 12);
-            
-            // Y-axis text (placed slightly left of the line)
-            // Note: Standard math graphs have positive Y moving UP, 
-            // but HTML Canvas coordinates have positive Y moving DOWN.
             ctx.fillText(i, center - 12, center - (i * scale));
         }
     }
@@ -179,11 +179,9 @@ function drawGrid() {
     ctx.lineWidth = 3;
     ctx.strokeStyle = "#3b82f6";
     
-    // Check if ALL found (for fill)
     const allFound = graphData.targetPoints.every(p => graphData.foundPoints.includes(p.label));
     
     if (allFound) {
-        // Fill the shape if complete
         ctx.fillStyle = "rgba(59, 130, 246, 0.2)";
         ctx.beginPath();
         const start = graphData.targetPoints[0];
@@ -196,13 +194,11 @@ function drawGrid() {
         ctx.fill();
     }
 
-    // Draw individual segments
     ctx.beginPath();
     for (let i = 0; i < graphData.targetPoints.length; i++) {
         const current = graphData.targetPoints[i];
         const next = graphData.targetPoints[(i + 1) % graphData.targetPoints.length];
 
-        // Draw line only if BOTH endpoints are found
         if (graphData.foundPoints.includes(current.label) && graphData.foundPoints.includes(next.label)) {
             ctx.moveTo(center + current.x*scale, center - current.y*scale);
             ctx.lineTo(center + next.x*scale, center - next.y*scale);
@@ -212,17 +208,15 @@ function drawGrid() {
 
     // 4. Draw The Dots (Vertices)
     graphData.targetPoints.forEach(p => {
-        // Only draw points the user has actually found
         if (graphData.foundPoints.includes(p.label)) {
             const px = center + (p.x * scale);
             const py = center - (p.y * scale);
             
             ctx.beginPath();
             ctx.arc(px, py, 6, 0, Math.PI * 2);
-            ctx.fillStyle = "#2563eb"; // Found = Blue
+            ctx.fillStyle = "#2563eb"; 
             ctx.fill();
             
-            // Label
             ctx.fillStyle = "#000";
             ctx.font = "bold 14px Arial";
             ctx.fillText(p.label, px + 10, py - 10);
@@ -234,18 +228,15 @@ function setupCanvasInteractions() {
     const canvas = document.getElementById('graphCanvas');
     
     canvas.onclick = (e) => {
-        // If done, ignore
         if (graphData.foundPoints.length === graphData.targetPoints.length) return;
 
         const rect = canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        // Calculate grid coordinates based on click
         let gridX = Math.round((mouseX - 200) / 20);
         let gridY = Math.round((200 - mouseY) / 20);
 
-        // Find which target point was clicked
         const match = graphData.targetPoints.find(p => p.x === gridX && p.y === gridY);
         const feedback = document.getElementById('graph-feedback');
 
@@ -255,10 +246,8 @@ function setupCanvasInteractions() {
                 return;
             }
 
-            // Success: Add label to found list
             graphData.foundPoints.push(match.label);
             
-            // Visual Update
             const item = document.getElementById(`pt-${match.label}`);
             if(item) {
                 item.style.background = "#dcfce7";
@@ -266,9 +255,8 @@ function setupCanvasInteractions() {
             }
             feedback.innerText = "";
             
-            drawGrid(); // Redraw grid (lines appear now)
+            drawGrid(); 
 
-            // Win Check
             if (graphData.foundPoints.length === graphData.targetPoints.length) {
                 handleRoundWin();
             }
@@ -302,7 +290,7 @@ async function handleRoundWin() {
     graphRound++;
     setTimeout(() => {
         if (graphRound > totalGraphRounds) finishGraphingGame();
-        else startGraphingRound();
+        else startGraphingRound(); // The title will automatically update to the new Problem #
     }, 1500);
 }
 
